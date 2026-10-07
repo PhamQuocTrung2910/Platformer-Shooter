@@ -31,6 +31,13 @@ shoot = False
 grenade = False
 grenade_thrown = False
 # Load Images
+# Store Tile in a list
+image_list = []
+for x in range(TILE_TYPES):
+    image = pygame.image.load(f'images/Tile/{x}.png')
+    image = pygame.transform.scale(image, (TILE_SIZE, TILE_SIZE))
+    image_list.append(image)
+
 # Bullet
 bullet_image = pygame.image.load('images/icons/bullet.png').convert_alpha()
 
@@ -64,7 +71,6 @@ font = pygame.font.SysFont('Century Gothic', 20)
 def draw_text(text, font, text_colour, x, y):
     image = font.render(text, True, text_colour)
     screen.blit(image, (x, y))
-
 
 def draw_bg():
     screen.fill(BG)
@@ -240,7 +246,6 @@ class Soldier(pygame.sprite.Sprite):
                     if self.idling_counter <= 0:
                         self.idling = False
 
-
 class Bullet(pygame.sprite.Sprite):
     def __init__(self, x, y, direction):
         pygame.sprite.Sprite.__init__(self)
@@ -368,6 +373,71 @@ class ItemBox(pygame.sprite.Sprite):
             #delete item box
             self.kill()
 
+class Decoration(pygame.sprite.Sprite):
+    def __init__(self, image, x, y):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = image
+        self.rect = self.image.get_rect()
+        self.rect.midtop = (x + TILE_SIZE // 2, y + (TILE_SIZE - self.image.get_height()))
+
+class Exit(pygame.sprite.Sprite):
+    def __init__(self, image, x, y):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = image
+        self.rect = self.image.get_rect()
+        self.rect.midtop = (x + TILE_SIZE // 2, y + (TILE_SIZE - self.image.get_height()))
+
+class Water(pygame.sprite.Sprite):
+    def __init__(self, image, x, y):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = image
+        self.rect = self.image.get_rect()
+        self.rect.midtop = (x + TILE_SIZE // 2, y + (TILE_SIZE - self.image.get_height()))
+
+class World():
+    def __init__(self):
+        self.obstacle_list = []
+
+    def process_data(self, data):
+        # Iterate through each value in level data file
+        for y, row in enumerate(data):
+            for x, tile in enumerate(row):
+                if tile >= 0:
+                    image = image_list[tile]
+                    image_rect = image.get_rect()
+                    image_rect.x = x * TILE_SIZE
+                    image_rect.y = y * TILE_SIZE
+                    tile_data = (image, image_rect)
+                    if tile >= 0 and tile <= 8:
+                        self.obstacle_list.append(tile_data)
+                    elif tile >= 9 and tile <= 10:
+                         water = Water(image, x * TILE_SIZE, y * TILE_SIZE)
+                         water_group.add(water)
+                    elif tile >= 11 and tile <= 14:
+                        decoration = Decoration(image, x * TILE_SIZE, y * TILE_SIZE)
+                        decoration_group.add(decoration)
+                    elif tile == 15: # Create Player
+                        player = Soldier('player', x * TILE_SIZE, y * TILE_SIZE, 1.65, 5, 20, 10)
+                        health_bar = HealthBar(10, 10, player.health, player.health)
+                    elif tile == 16: # Create Enemies
+                        enemy = Soldier('enemy', x * TILE_SIZE, y * TILE_SIZE, 1.65, 2, 5, 0)
+                        enemy_group.add(enemy)
+                    elif tile == 18: #Create Grenade Box
+                        item_box = ItemBox('Grenade', x * TILE_SIZE, y * TILE_SIZE)
+                        item_box_group.add(item_box)
+                    elif tile == 17: #Create Ammo Box
+                        item_box = ItemBox('Ammo', x * TILE_SIZE, y * TILE_SIZE)
+                        item_box_group.add(item_box)
+                    elif tile == 19: #Create Health Box
+                        item_box = ItemBox('Health', x * TILE_SIZE, y * TILE_SIZE)
+                        item_box_group.add(item_box)
+                    elif tile == 20: #Create Exit
+                        exit = Exit(image, x * TILE_SIZE, y * TILE_SIZE)
+                        exit_group.add(exit)
+        return player, health_bar
+    def draw(self):
+        for tile in self.obstacle_list:
+            screen.blit(tile[0], tile[1])
 class HealthBar():
     def __init__(self, x, y, health, max_health):
         self.x = x
@@ -392,37 +462,32 @@ bullet_group = pygame.sprite.Group()
 grenade_group = pygame.sprite.Group()
 explosion_group = pygame.sprite.Group()
 item_box_group = pygame.sprite.Group()
+decoration_group = pygame.sprite.Group()
+water_group = pygame.sprite.Group()
+exit_group = pygame.sprite.Group()
 
 
-#Temp - Create Item Boxes
-item_box = ItemBox('Health', 100, 450)
-item_box_group.add(item_box)
-item_box = ItemBox('Ammo', 200, 450)
-item_box_group.add(item_box)
-item_box = ItemBox('Grenade', 300, 450)
-item_box_group.add(item_box)
-
-player = Soldier('player', 500, 200, 1.65, 5, 20, 10)
-health_bar = HealthBar(10, 10, player.health, player.health)
-
-enemy = Soldier('enemy', 500, 450, 1.65, 2, 5, 0)
-enemy2 = Soldier('enemy', 100, 450, 1.65, 2, 5, 0)
-enemy_group.add(enemy, enemy2)
 
 # Create empty tile list
 world_data = []
 for row in range(ROWS):
-    r = (-1) * COLLUMNS
+    r = [-1] * COLLUMNS
     world_data.append(r)
 # Load in the level data and create world
-with open(f'level{level}_data.csv', newline = ' ') as csvfile:
-    reader = csv.reader(csvfile, delimiter = ',')
-
-
+with open(f'level{level}_data.csv', newline='') as csvfile:
+    reader = csv.reader(csvfile, delimiter=',')
+    for x, row in enumerate(reader):
+        for y, tile in enumerate(row):
+            world_data[x][y] = int(tile)
+world = World()
+player, health_bar = world.process_data(world_data)
 
 while True:
     clock.tick(FPS)
+    # Update Background
     draw_bg()
+    # Draw world map
+    world.draw()
 
     #show player health
     health_bar.draw(player.health)
@@ -448,10 +513,18 @@ while True:
     grenade_group.update()
     explosion_group.update()
     item_box_group.update()
+    decoration_group.update()
+    water_group.update()
+    exit_group.update()
+
     bullet_group.draw(screen)
     grenade_group.draw(screen)
     explosion_group.draw(screen)
     item_box_group.draw(screen)
+    decoration_group.draw(screen)
+    water_group.draw(screen)
+    exit_group.draw(screen)
+
 
     # Update Player Actions
     if player.alive:
