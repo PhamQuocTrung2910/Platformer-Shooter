@@ -1,4 +1,3 @@
-import os
 import random
 
 import pygame
@@ -6,23 +5,27 @@ import pygame
 import state
 from settings import (GRAVITY, MAX_FALL_SPEED, SCREEN_HEIGHT, SCREEN_WIDTH,
                       SCROLL_THRESHOLD, TILE_SIZE, WEAPONS, ENEMY_BULLET_DAMAGE,
-                      ANIMATION_TYPES, DROP_CHANCES, screen)
-from assets import load_image, gun_shot_sound
+                      ANIMATION_TYPES, DROP_CHANCES, screen,
+                      STIM_DURATION, STIM_DRAIN_INTERVAL, STIM_DRAIN_AMOUNT,
+                      STIM_SPEED_MULT, STIM_FIRE_RATE_MULT)
+from assets import load_frames, gun_shot_sound
 from groups import bullet_group, water_group, exit_group, item_box_group
 from projectiles import Bullet
 from objects import DroppedItem
 
 
 def get_animation_path(character_type, gun_type, animation):
-    """images/<char>/<gun>/<animation>, falling back to images/<char>/<animation>
-    (useful if the enemy folder has no per-gun subfolders)."""
-    path = f'images/{character_type}/{gun_type}/{animation}'
-    if not os.path.isdir(path):
-        path = f'images/{character_type}/{animation}'
-    return path
+    """Player: images/player/<gun>/<animation>
+    Enemy soldier: images/enemy/soldier/<animation> (no per-gun folders)."""
+    if character_type == 'enemy':
+        return f'images/enemy/soldier/{animation}'
+    return f'images/{character_type}/{gun_type}/{animation}'
 
 
 class Soldier(pygame.sprite.Sprite):
+    drop_chances = DROP_CHANCES  # subclasses (e.g. Zombie) can override
+    death_action = 3             # index of the Death animation (Zombie overrides this)
+
     def __init__(self, character_type, guns, x, y, scale, speed, ammo, grenades):
         pygame.sprite.Sprite.__init__(self)
         self.alive = True
@@ -49,24 +52,32 @@ class Soldier(pygame.sprite.Sprite):
         self.idling = False
         self.idling_counter = 0
 
+        # Stimulant (buff) state
+        self.base_speed = speed
+        self.stimulated = False
+        self.stim_end_time = 0
+        self.stim_next_drain = 0
+        self.fire_rate_multiplier = 1.0
+
         # Load all images for the players
         # animations[gun][action] -> list of frames
         self.animations = {}
-        for gun in self.guns:
-            gun_animations = []
-            for animation in ANIMATION_TYPES:
-                path = get_animation_path(self.character_type, gun, animation)
-                # Count number of files in a folder and load each frame
-                frames = [load_image(f'{path}/{i}.png', scale)
-                          for i in range(len(os.listdir(path)))]
-                gun_animations.append(frames)
-            self.animations[gun] = gun_animations
+        self.load_animations(scale)
 
         self.image = self.current_frames()[self.frame_index]
         self.rect = self.image.get_rect()
         self.rect.center = (x, y)
         self.width = self.image.get_width()
         self.height = self.image.get_height()
+
+    def load_animations(self, scale):
+        for gun in self.guns:
+            gun_animations = []
+            for animation in ANIMATION_TYPES:
+                path = get_animation_path(self.character_type, gun, animation)
+                frames = load_frames(path, scale)
+                gun_animations.append(frames)
+            self.animations[gun] = gun_animations
 
     def current_frames(self):
         return self.animations[self.gun_type][self.action]
@@ -79,11 +90,44 @@ class Soldier(pygame.sprite.Sprite):
             self.shoot_cooldown = 0
 
     def update(self):
+        self.update_stimulant()
         self.update_animation()
         self.check_alive()
-        # Update Cooldown
+        # Update Cooldown (a stimulated soldier counts it down faster)
         if self.shoot_cooldown > 0:
-            self.shoot_cooldown -= 1
+            self.shoot_cooldown = max(0, self.shoot_cooldown - self.fire_rate_multiplier)
+
+    # -- Mutated stimulant ---------------------------------------------
+    def apply_stimulant(self):
+        """Start the buff. Returns False (and does nothing) if already stimulated."""
+        if self.stimulated or not self.alive:
+            return False
+        now = pygame.time.get_ticks()
+        self.stimulated = True
+        self.stim_end_time = now + STIM_DURATION
+        self.stim_next_drain = now + STIM_DRAIN_INTERVAL
+        self.fire_rate_multiplier = STIM_FIRE_RATE_MULT
+        self.speed = round(self.base_speed * STIM_SPEED_MULT)
+        return True
+
+    def end_stimulant(self):
+        self.stimulated = False
+        self.fire_rate_multiplier = 1.0
+        if self.alive:
+            self.speed = self.base_speed
+
+    def update_stimulant(self):
+        if not self.stimulated:
+            return
+        if not self.alive:
+            self.end_stimulant()
+            return
+        now = pygame.time.get_ticks()
+        while self.stim_next_drain <= min(now, self.stim_end_time):
+            self.health -= STIM_DRAIN_AMOUNT   # check_alive() handles death
+            self.stim_next_drain += STIM_DRAIN_INTERVAL
+        if now >= self.stim_end_time:
+            self.end_stimulant()
 
     def move(self, moving_left, moving_right):
         world = state.world
@@ -183,7 +227,7 @@ class Soldier(pygame.sprite.Sprite):
 
         # Reset the animation back to the start index[0]
         if self.frame_index >= len(frames):
-            if self.action == 3:  # death animation holds its last frame
+            if self.action == self.death_action:  # death animation holds its last frame
                 self.frame_index = len(frames) - 1
             else:
                 self.frame_index = 0
@@ -202,14 +246,14 @@ class Soldier(pygame.sprite.Sprite):
             self.health = 0
             self.speed = 0
             self.alive = False
-            self.update_action(3)
+            self.update_action(self.death_action)
             # Only drop loot once, on the frame the enemy dies
             if was_alive and self.character_type == 'enemy':
                 self.drop_loot()
 
     def drop_loot(self):
         """Roll each item in DROP_CHANCES and spawn the ones that succeed."""
-        drops = [item for item, chance in DROP_CHANCES.items() if random.random() < chance]
+        drops = [item for item, chance in self.drop_chances.items() if random.random() < chance]
         for i, item_type in enumerate(drops):
             # Spread multiple drops apart so they don't sit on top of each other
             offset = (i - (len(drops) - 1) / 2) * 40
@@ -222,7 +266,7 @@ class Soldier(pygame.sprite.Sprite):
 
     def shoot(self):
         weapon = WEAPONS[self.gun_type]
-        if self.shoot_cooldown == 0 and self.ammo[self.gun_type] > 0:
+        if self.shoot_cooldown <= 0 and self.ammo[self.gun_type] > 0:
             self.shoot_cooldown = weapon['cooldown']
             damage = weapon['damage'] if self.character_type == 'player' else ENEMY_BULLET_DAMAGE
             spawn_x = self.rect.centerx + (0.75 * self.rect.size[0] * self.direction)

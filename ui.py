@@ -71,6 +71,11 @@ def draw_weapon_hud():
         for i in range(player.grenades):
             screen.blit(grenade_image, (HUD_X + 110 + i * grenade_spacing, grenade_y + 5))
 
+    # Stimulant countdown
+    if player.stimulated:
+        seconds_left = (player.stim_end_time - pygame.time.get_ticks() + 999) // 1000
+        draw_text(f'Stimulated: {seconds_left}s', font, HUD_ACTIVE_COLOUR, HUD_X, grenade_y + 30)
+
 
 class HealthBar():
     def __init__(self, x, y, health, max_health):

@@ -14,11 +14,17 @@ class ItemBox(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.rect.midtop = (x + TILE_SIZE // 2, y + (TILE_SIZE - self.image.get_height()))
 
+    def can_pick_up(self, player):
+        """Mutated stimulants can't be picked up while already stimulated (no stacking)."""
+        if self.item_type == 'MutatedStimulant':
+            return player.alive and not player.stimulated
+        return True
+
     def update(self):
         # Scroll
         self.rect.x += state.screen_scroll
         # Checking if player has picked up box
-        if pygame.sprite.collide_rect(self, state.player):
+        if pygame.sprite.collide_rect(self, state.player) and self.can_pick_up(state.player):
             self.apply_effect(state.player)
             # Delete item box
             self.kill()
@@ -39,6 +45,8 @@ class ItemBox(pygame.sprite.Sprite):
                 player.ammo[gun] += max(1, int(WEAPONS[gun]['pickup'] * MAGAZINE_AMMO_FRACTION))
         elif self.item_type == 'Syringe':
             player.health = min(player.health + SYRINGE_HEAL, player.max_health)
+        elif self.item_type == 'MutatedStimulant':
+            player.apply_stimulant()
 
 
 class DroppedItem(ItemBox):

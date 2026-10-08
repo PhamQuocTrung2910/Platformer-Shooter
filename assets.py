@@ -1,3 +1,6 @@
+import os
+import re
+
 import pygame
 
 from settings import TILE_SIZE, TILE_TYPES, PLAYER_GUNS
@@ -16,6 +19,20 @@ def load_image(path, scale=1, size=None):
         image = pygame.transform.scale(
             image, (int(image.get_width() * scale), int(image.get_height() * scale)))
     return image
+
+
+def load_frames(path, scale=1):
+    """Load an animation folder: every file named <number>.png, in numeric order.
+
+    Other files (sheet previews, Thumbs.db, etc.) are ignored, and a missing or
+    empty folder gives a clear error message instead of an obscure crash."""
+    if not os.path.isdir(path):
+        raise FileNotFoundError(f"Animation folder not found: {path}")
+    names = [n for n in os.listdir(path) if re.fullmatch(r'\d+\.png', n)]
+    if not names:
+        raise FileNotFoundError(f"No numbered .png frames (0.png, 1.png, ...) in: {path}")
+    names.sort(key=lambda n: int(n.split('.')[0]))
+    return [load_image(f'{path}/{n}', scale) for n in names]
 
 
 # ---------------------------------------------------------------------------
@@ -63,6 +80,7 @@ item_boxes = {
     'Grenade': load_image('images/icons/grenade_box.png'),
     'Magazine': load_image('images/icons/magazine.png'),
     'Syringe': load_image('images/icons/syringe.png'),
+    'MutatedStimulant': load_image('images/icons/mutated_stimulant.png'),
 }
 
 # Weapon icons (HUD): normal copy for the current weapon, faded copy for the others

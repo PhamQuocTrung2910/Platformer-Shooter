@@ -14,7 +14,7 @@ SCREEN_HEIGHT = int(SCREEN_WIDTH * 0.8)
 ROWS = 16
 COLUMNS = 150
 TILE_SIZE = SCREEN_HEIGHT // ROWS
-TILE_TYPES = 21
+TILE_TYPES = 22  # tile 21 = zombie spawn marker
 MAX_LEVELS = 3
 MAX_FALL_SPEED = 10
 ENEMY_BULLET_DAMAGE = 5
@@ -90,3 +90,23 @@ DROP_CHANCES = {
 }
 MAGAZINE_AMMO_FRACTION = 0.5  # fraction of an ammo box's refill, given to every weapon
 SYRINGE_HEAL = 15             # health box heals 25
+
+# ---------------------------------------------------------------------------
+# Zombie
+# ---------------------------------------------------------------------------
+ZOMBIE_SPEED = 1              # soldiers use 2
+ZOMBIE_HEALTH = 200           # double the soldier's 100
+ZOMBIE_ATTACK_RANGE = 12      # px of claw reach in front of the zombie
+ZOMBIE_ATTACK_DAMAGE = 15
+ZOMBIE_ATTACK_COOLDOWN = 60   # frames between swings
+ZOMBIE_PATROL_FRAMES = TILE_SIZE * 2
+ZOMBIE_DROP_CHANCES = {'MutatedStimulant': 0.25}
+
+# ---------------------------------------------------------------------------
+# Mutated stimulant (player buff picked up from zombies)
+# ---------------------------------------------------------------------------
+STIM_DURATION = 20000         # ms
+STIM_DRAIN_INTERVAL = 1000    # ms between health ticks
+STIM_DRAIN_AMOUNT = 1         # health lost per tick (can kill the player)
+STIM_SPEED_MULT = 1.4         # player speed 5 becomes 7
+STIM_FIRE_RATE_MULT = 1.5     # shortens the cooldown between shots

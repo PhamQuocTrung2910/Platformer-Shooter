@@ -9,6 +9,7 @@ from groups import (water_group, decoration_group, enemy_group, item_box_group,
                     exit_group)
 from objects import ItemBox, Decoration, Exit, Water
 from soldier import Soldier
+from zombie import Zombie
 from ui import HealthBar
 
 
@@ -52,6 +53,8 @@ class World():
                         item_box_group.add(ItemBox('Health', x * TILE_SIZE, y * TILE_SIZE))
                     elif tile == 20:  # Create Exit
                         exit_group.add(Exit(image, x * TILE_SIZE, y * TILE_SIZE))
+                    elif tile == 21:  # Create Zombie
+                        enemy_group.add(Zombie(x * TILE_SIZE, y * TILE_SIZE, 1.65))
         return player, health_bar
 
     def draw(self):
