@@ -23,6 +23,7 @@ screen_scroll = 0
 bg_scroll = 0
 level = 1
 start_game = False
+start_intro = False
 
 
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
@@ -591,10 +592,22 @@ class ScreenFade():
         self.fade_counter = 0
 
     def fade(self):
+        fade_complete = False
         self.fade_counter += self.speed
-        pygame.draw.rect(screen, self.colour, (0, 0, SCREEN_WIDTH, 0 + self.fade_counter))
+        if self.direction == 1: # Whole Screen Fade
+            pygame.draw.rect(screen, self.colour, (0 - self.fade_counter, 0, SCREEN_WIDTH // 2, SCREEN_HEIGHT ))
+            pygame.draw.rect(screen, self.colour, (SCREEN_WIDTH // 2 + self.fade_counter, 0, SCREEN_WIDTH, SCREEN_HEIGHT ))
+            pygame.draw.rect(screen, self.colour, (0 , 0 - self.fade_counter, SCREEN_WIDTH , SCREEN_HEIGHT // 2))
+            pygame.draw.rect(screen, self.colour, (0, SCREEN_HEIGHT // 2 + self.fade_counter, SCREEN_WIDTH, SCREEN_HEIGHT ))
+        if self.direction == 2: # Vertical Screen Fade Down
+            pygame.draw.rect(screen, self.colour, (0, 0, SCREEN_WIDTH, 0 + self.fade_counter))
+        if self.fade_counter >= SCREEN_WIDTH // 2:
+            fade_complete = True
+
+        return fade_complete
 
 # Create Screen Fades
+intro_fade = ScreenFade(1, BLACK, 3)
 death_fade = ScreenFade(2, PINK, 4)
 
 # Create Buttons
@@ -638,6 +651,7 @@ while True:
         # Add button
         if start_button.draw(screen):
             start_game = True
+            start_intro = True
         if exit_button.draw(screen):
             exit()
     else:
@@ -682,6 +696,12 @@ while True:
         water_group.draw(screen)
         exit_group.draw(screen)
 
+        # Show Intro
+        if start_intro == True:
+            if intro_fade.fade():
+                start_intro = False
+                intro_fade.fade_counter = 0
+
 
         # Update Player Actions
         if player.alive:
@@ -705,9 +725,12 @@ while True:
             screen_scroll, level_complete = player.move(moving_left, moving_right)
             bg_scroll -= screen_scroll
              # Check if player has completed the level
-            if level_complete == True:
+            if level_complete:
                 level += 1
+                start_intro = True
+                intro_fade.fade_counter = 0
                 bg_scroll = 0
+                screen_scroll = 0
                 world_data = reset_level()
                 if level <= MAX_LEVELS:
                     # Load in the level data and create world
@@ -720,17 +743,20 @@ while True:
                     player, health_bar = world.process_data(world_data)
         else: # If player is dead
             screen_scroll = 0
-            if restart_button.draw(screen):
-                bg_scroll = 0
-                world_data = reset_level()
-                # Load in the level data and create world
-                with open(f'level{level}_data.csv', newline='') as csvfile:
-                    reader = csv.reader(csvfile, delimiter=',')
-                    for x, row in enumerate(reader):
-                        for y, tile in enumerate(row):
-                            world_data[x][y] = int(tile)
-                world = World()
-                player, health_bar = world.process_data(world_data)
+            if death_fade.fade():
+                if restart_button.draw(screen):
+                    death_fade.fade_counter = 0
+                    start_intro = True
+                    bg_scroll = 0
+                    world_data = reset_level()
+                    # Load in the level data and create world
+                    with open(f'level{level}_data.csv', newline='') as csvfile:
+                        reader = csv.reader(csvfile, delimiter=',')
+                        for x, row in enumerate(reader):
+                            for y, tile in enumerate(row):
+                                world_data[x][y] = int(tile)
+                    world = World()
+                    player, health_bar = world.process_data(world_data)
 
 
     for event in pygame.event.get():
