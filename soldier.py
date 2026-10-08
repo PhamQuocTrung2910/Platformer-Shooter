@@ -6,10 +6,11 @@ import pygame
 import state
 from settings import (GRAVITY, MAX_FALL_SPEED, SCREEN_HEIGHT, SCREEN_WIDTH,
                       SCROLL_THRESHOLD, TILE_SIZE, WEAPONS, ENEMY_BULLET_DAMAGE,
-                      ANIMATION_TYPES, screen)
+                      ANIMATION_TYPES, DROP_CHANCES, screen)
 from assets import load_image, gun_shot_sound
-from groups import bullet_group, water_group, exit_group
+from groups import bullet_group, water_group, exit_group, item_box_group
 from projectiles import Bullet
+from objects import DroppedItem
 
 
 def get_animation_path(character_type, gun_type, animation):
@@ -197,10 +198,22 @@ class Soldier(pygame.sprite.Sprite):
 
     def check_alive(self):
         if self.health <= 0:
+            was_alive = self.alive
             self.health = 0
             self.speed = 0
             self.alive = False
             self.update_action(3)
+            # Only drop loot once, on the frame the enemy dies
+            if was_alive and self.character_type == 'enemy':
+                self.drop_loot()
+
+    def drop_loot(self):
+        """Roll each item in DROP_CHANCES and spawn the ones that succeed."""
+        drops = [item for item, chance in DROP_CHANCES.items() if random.random() < chance]
+        for i, item_type in enumerate(drops):
+            # Spread multiple drops apart so they don't sit on top of each other
+            offset = (i - (len(drops) - 1) / 2) * 40
+            item_box_group.add(DroppedItem(item_type, int(self.rect.centerx + offset), self.rect.centery))
 
     def draw(self):
         # Always face the way the soldier aims and shoots (direction), so the sprite can't

@@ -61,6 +61,8 @@ item_boxes = {
     'Health': load_image('images/icons/health_box.png'),
     'Ammo': load_image('images/icons/ammo_box.png'),
     'Grenade': load_image('images/icons/grenade_box.png'),
+    'Magazine': load_image('images/icons/magazine.png'),
+    'Syringe': load_image('images/icons/syringe.png'),
 }
 
 # Weapon icons (HUD): normal copy for the current weapon, faded copy for the others

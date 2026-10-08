@@ -79,3 +79,14 @@ SLOT_HEIGHT = 40
 SLOT_GAP = 6
 SLOT_Y = 40
 HUD_WIDTH = 3 * SLOT_WIDTH + 2 * SLOT_GAP
+
+# ---------------------------------------------------------------------------
+# Enemy loot drops
+# ---------------------------------------------------------------------------
+# Each item is rolled separately when an enemy dies (0.0 = never, 1.0 = always)
+DROP_CHANCES = {
+    'Magazine': 0.30,
+    'Syringe': 0.20,
+}
+MAGAZINE_AMMO_FRACTION = 0.5  # fraction of an ammo box's refill, given to every weapon
+SYRINGE_HEAL = 15             # health box heals 25
