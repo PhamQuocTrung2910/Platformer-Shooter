@@ -38,9 +38,9 @@ clock = pygame.time.Clock()  # Used for frame rate
 # lifetime     : frames before a bullet disappears (None = until it leaves screen)
 # pickup       : ammo gained from one ammo box
 WEAPONS = {
-    'pistol':  {'cooldown': 20, 'damage': 25, 'bullet_speed': 10, 'pellets': 1,
+    'pistol':  {'cooldown': 20, 'damage': 35, 'bullet_speed': 10, 'pellets': 1,
                 'spread': 0.0, 'lifetime': None, 'pickup': 15},
-    'rifle':   {'cooldown': 8,  'damage': 15, 'bullet_speed': 14, 'pellets': 1,
+    'rifle':   {'cooldown': 10,  'damage': 15, 'bullet_speed': 14, 'pellets': 1,
                 'spread': 0.2, 'lifetime': None, 'pickup': 30},
     'shotgun': {'cooldown': 45, 'damage': 12, 'bullet_speed': 11, 'pellets': 5,
                 'spread': 1.5, 'lifetime': 22, 'pickup': 6},
