@@ -25,7 +25,6 @@ level = 1
 start_game = False
 start_intro = False
 
-
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption("Ben's Third Game")
 
@@ -137,10 +136,11 @@ def reset_level():
 
 # Classes
 class Soldier(pygame.sprite.Sprite):
-    def __init__(self, char_type, x, y, scale, speed, ammo, grenades):
+    def __init__(self, char_type, gun_type, x, y, scale, speed, ammo, grenades):
         pygame.sprite.Sprite.__init__(self)
         self.alive = True
         self.char_type = char_type
+        self.gun_type = gun_type
         self.health = 100
         self.max_health = self.health
         self.speed = speed
@@ -175,7 +175,7 @@ class Soldier(pygame.sprite.Sprite):
             # Count number of files in a folder
             num_of_frames = len(os.listdir(f'images/{self.char_type}/{animation}'))
             for i in range(num_of_frames):
-                image = pygame.image.load(f'images/{self.char_type}/{animation}/{i}.png').convert_alpha()
+                image = pygame.image.load(f'images/{self.char_type}/{gun_type}/{animation}/{i}.png').convert_alpha()
                 image = pygame.transform.scale(image, (image.get_width() * scale, image.get_height() * scale))
                 temp_list.append(image)
             self.animation_list.append(temp_list)
