@@ -1,3 +1,8 @@
+"""world.py - turns a level CSV file into actual game objects.
+
+Each level is a grid of numbers (16 rows x 150 columns). Each number says what
+sits in that cell: -1 = empty, 0-8 = solid ground, 15 = player spawn, and so on.
+"""
 import csv
 
 import state  # noqa: F401  (World reads state.screen_scroll)
@@ -15,8 +20,8 @@ from ui import HealthBar
 
 class World():
     def __init__(self):
-        self.obstacle_list = []
-        self.level_length = 0
+        self.obstacle_list = []   # (image, rect) for every solid tile; used for all collisions
+        self.level_length = 0     # number of columns in the level
 
     def process_data(self, data):
         player = None
@@ -25,17 +30,19 @@ class World():
         # Iterate through each value in level data file
         for y, row in enumerate(data):
             for x, tile in enumerate(row):
-                if tile >= 0:
+                if tile >= 0:   # -1 means empty, so skip it
                     image = image_list[tile]
                     image_rect = image.get_rect()
+                    # Convert grid position to pixel position
                     image_rect.x = x * TILE_SIZE
                     image_rect.y = y * TILE_SIZE
                     tile_data = (image, image_rect)
-                    if 0 <= tile <= 8:
+                    # The tile number decides what gets created:
+                    if 0 <= tile <= 8:        # solid ground/blocks
                         self.obstacle_list.append(tile_data)
-                    elif 9 <= tile <= 10:
+                    elif 9 <= tile <= 10:     # water (kills the player)
                         water_group.add(Water(image, x * TILE_SIZE, y * TILE_SIZE))
-                    elif 11 <= tile <= 14:
+                    elif 11 <= tile <= 14:    # scenery
                         decoration_group.add(Decoration(image, x * TILE_SIZE, y * TILE_SIZE))
                     elif tile == 15:  # Create Player
                         player = Soldier('player', PLAYER_GUNS, x * TILE_SIZE, y * TILE_SIZE,
@@ -59,6 +66,7 @@ class World():
 
     def draw(self):
         for tile in self.obstacle_list:
+            # Scroll the tile with the world, then draw it
             tile[1].x += state.screen_scroll
             screen.blit(tile[0], tile[1])
 
@@ -66,13 +74,14 @@ class World():
 def load_level(level_num):
     """Clear every group, read the level CSV, and build the world.
     Returns (world, player, health_bar)."""
+    # Remove everything left over from the previous level
     for group in groups.ALL_GROUPS:
         group.empty()
 
-    # Create empty tile list
+    # Create empty tile list (-1 everywhere = nothing)
     data = [[-1] * COLUMNS for _ in range(ROWS)]
     # Load in the level data and create world
-    with open(f'level{level_num}_data.csv', newline='') as csvfile:
+    with open(f'levels/level{level_num}_data.csv', newline='') as csvfile:
         reader = csv.reader(csvfile, delimiter=',')
         for row_index, row in enumerate(reader):
             for column_index, tile in enumerate(row):

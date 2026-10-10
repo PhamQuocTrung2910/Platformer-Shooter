@@ -1,3 +1,8 @@
+"""objects.py - things sitting in the level: pickups, decorations, exit and water.
+
+None of these move on their own (except dropped items falling). They only
+scroll left/right with the world as the player moves.
+"""
 import pygame
 
 import state
@@ -7,11 +12,15 @@ from assets import item_boxes
 
 
 class ItemBox(pygame.sprite.Sprite):
+    """A pickup. When the player touches it, it applies its effect and disappears."""
+
     def __init__(self, item_type, x, y):
         pygame.sprite.Sprite.__init__(self)
         self.item_type = item_type
         self.image = item_boxes[self.item_type]
         self.rect = self.image.get_rect()
+        # Centre it horizontally in its tile and sit it on the bottom of the tile
+        # (the images are smaller than a tile)
         self.rect.midtop = (x + TILE_SIZE // 2, y + (TILE_SIZE - self.image.get_height()))
 
     def can_pick_up(self, player):
@@ -21,7 +30,7 @@ class ItemBox(pygame.sprite.Sprite):
         return True
 
     def update(self):
-        # Scroll
+        # Scroll with the world
         self.rect.x += state.screen_scroll
         # Checking if player has picked up box
         if pygame.sprite.collide_rect(self, state.player) and self.can_pick_up(state.player):
@@ -32,6 +41,7 @@ class ItemBox(pygame.sprite.Sprite):
     def apply_effect(self, player):
         """Give the player whatever this item type provides."""
         if self.item_type == 'Health':
+            # min() stops health going above the maximum
             player.health = min(player.health + 25, player.max_health)
         elif self.item_type == 'Ammo':
             # Refill every weapon so you're never stuck on an empty gun
@@ -41,6 +51,7 @@ class ItemBox(pygame.sprite.Sprite):
             player.grenades += 3
         elif self.item_type == 'Magazine':
             # A smaller top-up than an ammo box, for every weapon
+            # (max(1, ...) guarantees at least 1 round)
             for gun in player.guns:
                 player.ammo[gun] += max(1, int(WEAPONS[gun]['pickup'] * MAGAZINE_AMMO_FRACTION))
         elif self.item_type == 'Syringe':
@@ -55,19 +66,23 @@ class DroppedItem(ItemBox):
 
     def __init__(self, item_type, x, y):
         super().__init__(item_type, 0, 0)
+        # Start where the enemy died instead of on a tile
         self.rect.midbottom = (x, y)
         self.velocity_y = -6   # little pop upwards
         self.on_ground = False
 
     def update(self):
+        # Only fall until we've landed once
         if not self.on_ground:
             self.fall()
         super().update()  # scroll + pickup check
 
     def fall(self):
+        # Gravity pulls down each frame, capped at terminal velocity
         self.velocity_y = min(self.velocity_y + GRAVITY, MAX_FALL_SPEED)
         delta_y = self.velocity_y
 
+        # Check where we WOULD be after moving; if that overlaps a tile, snap to its edge
         for tile in state.world.obstacle_list:
             if tile[1].colliderect(self.rect.x, self.rect.y + delta_y,
                                    self.rect.width, self.rect.height):
@@ -99,6 +114,8 @@ class _ScrollingTile(pygame.sprite.Sprite):
         self.rect.x += state.screen_scroll
 
 
+# These three behave identically; separate classes just give them clear names
+# and let each have its own group (water kills, exit ends the level).
 class Decoration(_ScrollingTile):
     pass
 

@@ -1,3 +1,8 @@
+"""soldier.py - the Soldier class, used for BOTH the player and the soldier enemies.
+
+It handles movement and physics, animation, health/death, shooting, the
+mutated-stimulant buff and the enemy AI. Zombie (zombie.py) inherits from it.
+"""
 import random
 
 import pygame
@@ -29,31 +34,31 @@ class Soldier(pygame.sprite.Sprite):
     def __init__(self, character_type, guns, x, y, scale, speed, ammo, grenades):
         pygame.sprite.Sprite.__init__(self)
         self.alive = True
-        self.character_type = character_type
+        self.character_type = character_type   # 'player' or 'enemy'
         self.guns = guns
-        self.gun_type = guns[0]
+        self.gun_type = guns[0]                # start with the first gun in the list
         self.health = 100
         self.max_health = self.health
         self.speed = speed
-        self.ammo = dict(ammo)  # {gun_name: rounds}
+        self.ammo = dict(ammo)  # {gun_name: rounds}  (copied so characters don't share one dict)
         self.grenades = grenades
         self.shoot_cooldown = 0
-        self.action = 0
-        self.direction = 1
+        self.action = 0         # 0 = Idle, 1 = Run, 2 = Jump, 3 = Death
+        self.direction = 1      # 1 = facing right, -1 = facing left
         self.velocity_y = 0
         self.jump = False
         self.in_air = True
         self.frame_index = 0
-        self.update_time = pygame.time.get_ticks()
+        self.update_time = pygame.time.get_ticks()   # when the animation frame last changed
 
         # Create AI Specific variables for Enemies
         self.move_counter = 0
-        self.vision = pygame.Rect(0, 0, 150, 20)
+        self.vision = pygame.Rect(0, 0, 150, 20)   # box in front of the enemy; if the player is in it, it reacts
         self.idling = False
         self.idling_counter = 0
 
         # Stimulant (buff) state
-        self.base_speed = speed
+        self.base_speed = speed      # remembered so we can restore it when the buff ends
         self.stimulated = False
         self.stim_end_time = 0
         self.stim_next_drain = 0
@@ -71,6 +76,7 @@ class Soldier(pygame.sprite.Sprite):
         self.height = self.image.get_height()
 
     def load_animations(self, scale):
+        # For every gun, load every animation (Idle, Run, Jump, Death)
         for gun in self.guns:
             gun_animations = []
             for animation in ANIMATION_TYPES:
@@ -80,14 +86,16 @@ class Soldier(pygame.sprite.Sprite):
             self.animations[gun] = gun_animations
 
     def current_frames(self):
+        # The list of frames for the current gun + current action
         return self.animations[self.gun_type][self.action]
 
     def switch_weapon(self, gun_type):
+        # Only switch to a gun we own, and only if it's actually different
         if gun_type in self.guns and gun_type != self.gun_type:
             self.gun_type = gun_type
             self.frame_index = 0
             self.update_time = pygame.time.get_ticks()
-            self.shoot_cooldown = 0
+            self.shoot_cooldown = 0   # no waiting after swapping
 
     def update(self):
         self.update_stimulant()
@@ -111,6 +119,7 @@ class Soldier(pygame.sprite.Sprite):
         return True
 
     def end_stimulant(self):
+        # Back to normal speed and fire rate
         self.stimulated = False
         self.fire_rate_multiplier = 1.0
         if self.alive:
@@ -123,6 +132,8 @@ class Soldier(pygame.sprite.Sprite):
             self.end_stimulant()
             return
         now = pygame.time.get_ticks()
+        # Apply one health tick for every interval that has passed. A while loop
+        # (not an if) so that no ticks are missed if a frame takes a long time.
         while self.stim_next_drain <= min(now, self.stim_end_time):
             self.health -= STIM_DRAIN_AMOUNT   # check_alive() handles death
             self.stim_next_drain += STIM_DRAIN_INTERVAL
@@ -130,6 +141,8 @@ class Soldier(pygame.sprite.Sprite):
             self.end_stimulant()
 
     def move(self, moving_left, moving_right):
+        """Move one frame with gravity and collisions.
+        Returns (scroll, level_complete): scroll is how far the WORLD should shift."""
         world = state.world
 
         # Reset Movement Variables
@@ -157,7 +170,7 @@ class Soldier(pygame.sprite.Sprite):
             self.velocity_y = MAX_FALL_SPEED
         delta_y += self.velocity_y
 
-        # Check Collision
+        # Check Collision: test where we WOULD end up against every solid tile
         for tile in world.obstacle_list:
             # Check collision in x axis
             if tile[1].colliderect(self.rect.x + delta_x, self.rect.y, self.width, self.height):
@@ -201,6 +214,8 @@ class Soldier(pygame.sprite.Sprite):
         self.rect.y += delta_y
 
         # Update Scroll based on player position
+        # If the player is in the scroll zone near either edge (and the level isn't at its end),
+        # undo the player's movement and shift the whole world the opposite way instead
         if self.character_type == 'player':
             if (self.rect.right > SCREEN_WIDTH - SCROLL_THRESHOLD
                     and state.background_scroll < (world.level_length * TILE_SIZE) - SCREEN_WIDTH) \
@@ -212,9 +227,10 @@ class Soldier(pygame.sprite.Sprite):
 
     def update_animation(self):
         # Update animation
-        ANIMATION_COOLDOWN = 100
+        ANIMATION_COOLDOWN = 100   # milliseconds each frame is shown
         frames = self.current_frames()
 
+        # Safety: if the frame list changed (new action/gun), don't index out of range
         if self.frame_index >= len(frames):
             self.frame_index = 0
         # Update image depending on current frame
@@ -266,26 +282,31 @@ class Soldier(pygame.sprite.Sprite):
 
     def shoot(self):
         weapon = WEAPONS[self.gun_type]
+        # Only fire if the gun has cooled down and there is ammo
         if self.shoot_cooldown <= 0 and self.ammo[self.gun_type] > 0:
             self.shoot_cooldown = weapon['cooldown']
+            # Enemies always use the fixed enemy damage; the player uses the weapon's damage
             damage = weapon['damage'] if self.character_type == 'player' else ENEMY_BULLET_DAMAGE
             spawn_x = self.rect.centerx + (0.75 * self.rect.size[0] * self.direction)
+            # One Bullet per pellet (the shotgun has 5), each with its own random vertical drift
             for _ in range(weapon['pellets']):
                 velocity_y = random.uniform(-weapon['spread'], weapon['spread']) if weapon['spread'] else 0
                 bullet = Bullet(spawn_x, self.rect.centery, self.direction, self.character_type,
                                 weapon['bullet_speed'], damage, velocity_y, weapon['lifetime'])
                 bullet_group.add(bullet)
-            # Reduce Ammo
+            # Reduce Ammo (one per shot, not per pellet)
             self.ammo[self.gun_type] -= 1
             gun_shot_sound.play()
 
     def ai(self):
+        """Soldier brain: shoot if the player is in the vision box, otherwise patrol."""
         player = state.player
 
         # Scroll first so the vision box and rect stay in sync with the world
         self.rect.x += state.screen_scroll
 
         if self.alive and player.alive:
+            # Randomly stop to idle (about once every 200 frames)
             if not self.idling and random.randint(1, 200) == 1:
                 self.update_action(0)  # 0: Idle
                 self.idling = True
@@ -302,16 +323,20 @@ class Soldier(pygame.sprite.Sprite):
                 self.shoot()
             else:
                 if not self.idling:
+                    # Patrol: walk in the current direction
                     ai_moving_right = (self.direction == 1)
                     ai_moving_left = not ai_moving_right
                     self.move(ai_moving_left, ai_moving_right)
                     self.update_action(1)  # 1: Run
                     self.move_counter += 1
 
+                    # After walking one tile's worth of frames, turn around.
+                    # Multiplying by -1 makes the counter count back up for the return trip.
                     if self.move_counter > TILE_SIZE:
                         self.direction *= -1
                         self.move_counter *= -1
                 else:
+                    # Standing still for a short while before patrolling again
                     self.idling_counter -= 1
                     if self.idling_counter <= 0:
                         self.idling = False

@@ -1,3 +1,8 @@
+"""main.py - the game loop. Run this file to play.
+
+Each frame it decides which screen to show (menu / win screen / gameplay),
+updates and draws everything, then reads keyboard events.
+"""
 import pygame
 from sys import exit
 
@@ -16,41 +21,44 @@ from world import load_level
 # Game flow variables
 # ---------------------------------------------------------------------------
 level = 1
-start_game = False
-start_intro = False
-game_won = False
+start_game = False    # False while the main menu is showing
+start_intro = False   # True while the opening screen fade is playing
+game_won = False      # True after finishing the last level
 
-# Player action variables
+# Player action variables (set by key presses, cleared by key releases)
 moving_left = False
 moving_right = False
 shooting = False
 throwing_grenade = False
-grenade_thrown = False
+grenade_thrown = False   # stops one Q press throwing a grenade every frame
 
 # ---------------------------------------------------------------------------
 # Setup
 # ---------------------------------------------------------------------------
 start_music()
 
+# ScreenFade(direction, colour, speed): 1 = intro (opens up), 2 = death (closes down)
 intro_fade = ScreenFade(1, BLACK, 3)
 death_fade = ScreenFade(2, PINK, 4)
 
+# Menu buttons (x, y, image, scale)
 start_button = button.Button(SCREEN_WIDTH // 2 - 130, SCREEN_HEIGHT // 2 - 150, start_image, 1)
 exit_button = button.Button(SCREEN_WIDTH // 2 - 110, SCREEN_HEIGHT // 2 + 50, exit_image, 1)
 restart_button = button.Button(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2 - 50, restart_image, 2)
 
+# Build level 1: returns the world, the player and the player's health bar
 state.world, state.player, state.health_bar = load_level(level)
 
 # ---------------------------------------------------------------------------
 # Main loop
 # ---------------------------------------------------------------------------
 while True:
-    clock.tick(FPS)
+    clock.tick(FPS)   # cap the game at 60 frames per second
 
     if not start_game:
         # Draw Menu
         screen.fill(BACKGROUND_COLOUR)
-        # Add button
+        # Add button (draw() returns True on the frame it is clicked)
         if start_button.draw(screen):
             start_game = True
             start_intro = True
@@ -63,6 +71,7 @@ while True:
         draw_background()
         draw_text('YOU WIN!', big_font, BLACK, SCREEN_WIDTH // 2 - 130, SCREEN_HEIGHT // 2 - 150)
         if restart_button.draw(screen):
+            # Reset everything back to level 1
             game_won = False
             level = 1
             state.background_scroll = 0
@@ -72,6 +81,7 @@ while True:
             state.world, state.player, state.health_bar = load_level(level)
 
     else:
+        # ----- Gameplay -----
         # Update Background
         draw_background()
         # Draw world map
@@ -84,6 +94,7 @@ while True:
         state.player.update()
         state.player.draw()
 
+        # Each enemy: think (ai), update timers/animation, then draw
         for enemy in enemy_group:
             enemy.ai()
             enemy.update()
@@ -135,6 +146,7 @@ while True:
             else:
                 state.player.update_action(0)  # 0 = Idle
 
+            # move() returns how far the world should scroll this frame
             state.screen_scroll, level_complete = state.player.move(moving_left, moving_right)
             state.background_scroll -= state.screen_scroll
 
@@ -152,6 +164,7 @@ while True:
                     state.world, state.player, state.health_bar = load_level(level)
         else:  # If player is dead
             state.screen_scroll = 0
+            # Red fade comes down the screen, then the Restart button appears
             if death_fade.fade():
                 if restart_button.draw(screen):
                     death_fade.fade_counter = 0
@@ -160,11 +173,13 @@ while True:
                     # Load in the level data and create world
                     state.world, state.player, state.health_bar = load_level(level)
 
+    # ----- Keyboard / window events -----
     for event in pygame.event.get():
         if event.type == pygame.QUIT:  # User clicking X button in window
             pygame.quit()
             exit()
 
+        # Key pressed down: turn the matching action on
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_LEFT or event.key == pygame.K_a:
                 moving_left = True
@@ -189,6 +204,7 @@ while True:
                 pygame.quit()
                 exit()
 
+        # Key released: turn the matching action off
         if event.type == pygame.KEYUP:
             if event.key == pygame.K_LEFT or event.key == pygame.K_a:
                 moving_left = False
@@ -198,6 +214,7 @@ while True:
                 shooting = False
             if event.key == pygame.K_q:
                 throwing_grenade = False
-                grenade_thrown = False
+                grenade_thrown = False   # allow the next Q press to throw again
 
+    # Show everything we drew this frame
     pygame.display.update()

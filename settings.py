@@ -1,23 +1,32 @@
+"""settings.py - constants and one-time setup.
+
+Every number you might want to tweak (gravity, weapon stats, zombie health...)
+lives here, so you can balance the game without touching any game logic.
+This file also starts pygame and creates the window, clock and fonts, which
+every other file imports from here.
+"""
 import pygame
 from pygame import mixer
 
+# Start the sound system and pygame itself. This must happen before we load
+# any sounds, fonts or images, which is why it is at the very top.
 mixer.init()
 pygame.init()
 
 # ---------------------------------------------------------------------------
 # Game constants
 # ---------------------------------------------------------------------------
-GRAVITY = 0.75
-SCROLL_THRESHOLD = 200
+GRAVITY = 0.75                 # added to vertical speed every frame
+SCROLL_THRESHOLD = 200         # how close (px) the player gets to the screen edge before the world scrolls
 SCREEN_WIDTH = 800
-SCREEN_HEIGHT = int(SCREEN_WIDTH * 0.8)
-ROWS = 16
-COLUMNS = 150
-TILE_SIZE = SCREEN_HEIGHT // ROWS
+SCREEN_HEIGHT = int(SCREEN_WIDTH * 0.8)   # 640
+ROWS = 16                      # tile rows in a level
+COLUMNS = 150                  # tile columns in a level
+TILE_SIZE = SCREEN_HEIGHT // ROWS         # size of one square tile in pixels (40)
 TILE_TYPES = 22  # tile 21 = zombie spawn marker
 MAX_LEVELS = 3
-MAX_FALL_SPEED = 10
-ENEMY_BULLET_DAMAGE = 5
+MAX_FALL_SPEED = 10            # terminal velocity so falling never gets too fast
+ENEMY_BULLET_DAMAGE = 5        # soldiers always do this much per bullet
 FPS = 60
 
 # ---------------------------------------------------------------------------
@@ -45,14 +54,14 @@ WEAPONS = {
     'shotgun': {'cooldown': 45, 'damage': 12, 'bullet_speed': 11, 'pellets': 5,
                 'spread': 1.5, 'lifetime': 22, 'pickup': 6},
 }
-PLAYER_GUNS = ['pistol', 'rifle', 'shotgun']
+PLAYER_GUNS = ['pistol', 'rifle', 'shotgun']              # order = keys 1, 2, 3
 PLAYER_START_AMMO = {'pistol': 20, 'rifle': 30, 'shotgun': 8}
 ENEMY_GUNS = ['rifle']
 ENEMY_START_AMMO = {'rifle': 5}
-ANIMATION_TYPES = ['Idle', 'Run', 'Jump', 'Death']
+ANIMATION_TYPES = ['Idle', 'Run', 'Jump', 'Death']        # index in this list = action number
 
 # ---------------------------------------------------------------------------
-# Colours
+# Colours (R, G, B)
 # ---------------------------------------------------------------------------
 BACKGROUND_COLOUR = (144, 201, 120)
 RED = (255, 0, 0)
@@ -73,12 +82,12 @@ big_font = pygame.font.SysFont('Century Gothic', 60)
 # ---------------------------------------------------------------------------
 # HUD layout
 # ---------------------------------------------------------------------------
-HUD_X = 10
+HUD_X = 10                     # left edge of the weapon HUD
 SLOT_WIDTH = 98
 SLOT_HEIGHT = 40
 SLOT_GAP = 6
 SLOT_Y = 40
-HUD_WIDTH = 3 * SLOT_WIDTH + 2 * SLOT_GAP
+HUD_WIDTH = 3 * SLOT_WIDTH + 2 * SLOT_GAP   # total width of the three slots
 
 # ---------------------------------------------------------------------------
 # Enemy loot drops
@@ -99,7 +108,7 @@ ZOMBIE_HEALTH = 200           # double the soldier's 100
 ZOMBIE_ATTACK_RANGE = 12      # px of claw reach in front of the zombie
 ZOMBIE_ATTACK_DAMAGE = 15
 ZOMBIE_ATTACK_COOLDOWN = 60   # frames between swings
-ZOMBIE_PATROL_FRAMES = TILE_SIZE * 2
+ZOMBIE_PATROL_FRAMES = TILE_SIZE * 2   # how long a zombie walks before turning round
 ZOMBIE_DROP_CHANCES = {'MutatedStimulant': 0.25}
 
 # ---------------------------------------------------------------------------

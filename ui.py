@@ -1,3 +1,5 @@
+"""ui.py - everything drawn on top of / behind the game: text, background, HUD,
+health bar and the screen fades."""
 import pygame
 
 import state
@@ -11,6 +13,7 @@ from assets import (sky_image, mountain_image, pine1_image, pine2_image,
 
 
 def draw_text(text, font, text_colour, x, y):
+    # Turn the text into an image, then draw it at (x, y)
     image = font.render(text, True, text_colour)
     screen.blit(image, (x, y))
 
@@ -19,6 +22,9 @@ def draw_background():
     screen.fill(BACKGROUND_COLOUR)
     width = sky_image.get_width()
     scroll = state.background_scroll
+    # Parallax: each layer moves by a different fraction of the scroll.
+    # Layers that move slower look farther away. Each is repeated 5 times
+    # side by side so there is always background to see.
     for i in range(5):
         screen.blit(sky_image, ((i * width) - scroll * 0.5, 0))
         screen.blit(mountain_image, ((i * width) - scroll * 0.6, SCREEN_HEIGHT - mountain_image.get_height() - 300))
@@ -59,6 +65,7 @@ def draw_weapon_hud():
     ammo_y = SLOT_Y + SLOT_HEIGHT + 8
     ammo_count = player.ammo[player.gun_type]
     if ammo_count > 0:
+        # Spacing shrinks when there are many bullets so they never overflow the HUD width
         bullet_spacing = min(10, HUD_WIDTH / ammo_count)
         for i in range(ammo_count):
             screen.blit(bullet_image, (HUD_X + i * bullet_spacing, ammo_y))
@@ -71,7 +78,7 @@ def draw_weapon_hud():
         for i in range(player.grenades):
             screen.blit(grenade_image, (HUD_X + 110 + i * grenade_spacing, grenade_y + 5))
 
-    # Stimulant countdown
+    # Stimulant countdown (+999 rounds the milliseconds UP to whole seconds)
     if player.stimulated:
         seconds_left = (player.stim_end_time - pygame.time.get_ticks() + 999) // 1000
         draw_text(f'Stimulated: {seconds_left}s', font, HUD_ACTIVE_COLOUR, HUD_X, grenade_y + 30)
@@ -89,6 +96,7 @@ class HealthBar():
         self.health = health
         # Calculate health ratio
         ratio = self.health / self.max_health
+        # Black border, then a full red bar, then a green bar covering the remaining health
         pygame.draw.rect(screen, BLACK, (self.x - 2, self.y - 2, 154, 24))
         pygame.draw.rect(screen, RED, (self.x, self.y, 150, 20))
         pygame.draw.rect(screen, GREEN, (self.x, self.y, 150 * ratio, 20))
@@ -96,15 +104,17 @@ class HealthBar():
 
 class ScreenFade():
     def __init__(self, direction, colour, speed):
-        self.direction = direction
+        self.direction = direction   # 1 = intro (opening), 2 = death (closing down)
         self.colour = colour
-        self.speed = speed
+        self.speed = speed           # pixels the fade grows each frame
         self.fade_counter = 0
 
     def fade(self):
         fade_complete = False
         self.fade_counter += self.speed
         if self.direction == 1:  # Whole Screen Fade (intro)
+            # Four rectangles (left, right, top, bottom) slide outwards from the centre,
+            # revealing the level
             pygame.draw.rect(screen, self.colour, (0 - self.fade_counter, 0, SCREEN_WIDTH // 2, SCREEN_HEIGHT))
             pygame.draw.rect(screen, self.colour, (SCREEN_WIDTH // 2 + self.fade_counter, 0, SCREEN_WIDTH, SCREEN_HEIGHT))
             pygame.draw.rect(screen, self.colour, (0, 0 - self.fade_counter, SCREEN_WIDTH, SCREEN_HEIGHT // 2))
@@ -112,6 +122,7 @@ class ScreenFade():
             if self.fade_counter >= SCREEN_WIDTH // 2:
                 fade_complete = True
         elif self.direction == 2:  # Vertical Screen Fade Down (death)
+            # One rectangle growing down from the top until it covers the screen
             pygame.draw.rect(screen, self.colour, (0, 0, SCREEN_WIDTH, self.fade_counter))
             if self.fade_counter >= SCREEN_HEIGHT:
                 fade_complete = True
