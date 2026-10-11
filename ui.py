@@ -8,9 +8,13 @@ from settings import (screen, hud, SCREEN_WIDTH, SCREEN_HEIGHT, PLAYER_GUNS,
                       HUD_ACTIVE_COLOUR, HUD_INACTIVE_COLOUR,
                       HUD_BG_COLOUR, HUD_LINE_COLOUR, GRENADE_X, HUD_HEIGHT,
                       HUD_X, HUD_WIDTH, SLOT_WIDTH, SLOT_HEIGHT, SLOT_GAP, SLOT_Y,
-                      font, small_font)
+                      LOW_AMMO, LOW_AMMO_COLOUR, font, small_font)
 from assets import (BACKGROUNDS, bullet_image, grenade_image,
                     weapon_icons, faded_weapon_icons)
+
+# Bullet icon scaled 2x once (used by the ammo counter)
+big_bullet = pygame.transform.scale(
+    bullet_image, (bullet_image.get_width() * 2, bullet_image.get_height() * 2))
 
 # Status bar colours (effect name -> bar colour)
 STATUS_COLOURS = {
@@ -78,31 +82,25 @@ def draw_weapon_hud():
         border_colour = HUD_ACTIVE_COLOUR if is_active else HUD_INACTIVE_COLOUR
         pygame.draw.rect(hud, border_colour, slot_rect, 3 if is_active else 1)
 
-        # Weapon icon on the left (faded when it isn't the current weapon)
+        # Weapon icon centred in the slot (faded when it isn't the current weapon)
         icon = weapon_icons[gun] if is_active else faded_weapon_icons[gun]
-        hud.blit(icon, (slot_x + 4, SLOT_Y + (SLOT_HEIGHT - icon.get_height()) // 2))
+        hud.blit(icon, icon.get_rect(center=slot_rect.center))
 
-        # Key number (top right) and rounds left (bottom right), right-aligned
-        text_colour = WHITE if is_active else HUD_INACTIVE_COLOUR
-        for text, text_y in ((str(slot_number + 1), SLOT_Y + 3), (str(player.ammo[gun]), SLOT_Y + 19)):
-            text_width = small_font.size(text)[0]
-            draw_text(text, small_font, text_colour, slot_x + SLOT_WIDTH - 6 - text_width, text_y, hud)
-
-    # One bullet icon per round for the current weapon (squeezed together if there are lots)
+    # One bullet icon + a "x20" counter for the current weapon
     ammo_y = SLOT_Y + SLOT_HEIGHT + 8
     ammo_count = player.ammo[player.gun_type]
-    if ammo_count > 0:
-        # Spacing shrinks when there are many bullets so they never overflow the HUD width
-        bullet_spacing = min(10, HUD_WIDTH / ammo_count)
-        for i in range(ammo_count):
-            hud.blit(bullet_image, (HUD_X + i * bullet_spacing, ammo_y))
+    counter_colour = LOW_AMMO_COLOUR if ammo_count <= LOW_AMMO else WHITE
+    hud.blit(big_bullet, (HUD_X, ammo_y))
+    label = f'x{ammo_count}'
+    label_y = ammo_y + (big_bullet.get_height() - font.get_height()) // 2
+    draw_text(label, font, counter_colour, HUD_X + big_bullet.get_width() + 8, label_y, hud)
 
     # One grenade icon per grenade, in the left column under the health bar
-    draw_text('Grenades', small_font, WHITE, GRENADE_X, 36, hud)
+    draw_text('Grenades', small_font, WHITE, GRENADE_X, 38, hud)
     if player.grenades > 0:
         grenade_spacing = min(15, 150 / player.grenades)
         for i in range(player.grenades):
-            hud.blit(grenade_image, (GRENADE_X + i * grenade_spacing, 58))
+            hud.blit(grenade_image, (GRENADE_X + i * grenade_spacing, 52))
 
 
 def draw_status_bar():
@@ -126,21 +124,54 @@ def draw_status_bar():
 
 
 class HealthBar():
+    WIDTH = 150
+    HEIGHT = 20
+
     def __init__(self, x, y, health, max_health):
         self.x = x
         self.y = y
         self.health = health
         self.max_health = max_health
+        self.trail = float(health)   # pale bar that drains slowly after a hit
 
     def draw(self, health):
-        # Update with new health
-        self.health = health
-        # Calculate health ratio
+        self.health = max(health, 0)
+
+        # Trail: jumps up instantly when healing, drains slowly after damage
+        if self.trail < self.health:
+            self.trail = float(self.health)
+        else:
+            self.trail = max(self.health, self.trail - self.max_health * 0.004)
+
         ratio = self.health / self.max_health
-        # Black border, then a full red bar, then a green bar covering the remaining health
-        pygame.draw.rect(hud, BLACK, (self.x - 2, self.y - 2, 154, 24))
-        pygame.draw.rect(hud, RED, (self.x, self.y, 150, 20))
-        pygame.draw.rect(hud, GREEN, (self.x, self.y, 150 * ratio, 20))
+        trail_ratio = self.trail / self.max_health
+
+        # Bar colour by amount left
+        if ratio > 0.6:
+            colour, light = (60, 220, 90), (150, 255, 170)
+        elif ratio > 0.3:
+            colour, light = (240, 200, 40), (255, 235, 130)
+        else:
+            colour, light = (230, 50, 50), (255, 130, 130)
+
+        # Border flashes red when health is critical
+        flashing = ratio < 0.25 and (pygame.time.get_ticks() // 250) % 2 == 0
+        border = RED if flashing else BLACK
+
+        x, y, w, h = self.x, self.y, self.WIDTH, self.HEIGHT
+        pygame.draw.rect(hud, border, (x - 2, y - 2, w + 4, h + 4))
+        pygame.draw.rect(hud, (55, 20, 20), (x, y, w, h))                        # empty part
+        pygame.draw.rect(hud, (255, 235, 200), (x, y, int(w * trail_ratio), h))  # damage trail
+        pygame.draw.rect(hud, colour, (x, y, int(w * ratio), h))                 # current health
+        if ratio > 0:
+            pygame.draw.line(hud, light, (x, y), (x + int(w * ratio) - 1, y))    # top highlight
+
+        # "75 / 100" centred, with a dark shadow so it reads on any colour
+        label = f'{int(self.health)} / {self.max_health}'
+        text_x = x + (w - small_font.size(label)[0]) // 2
+        text_y = y + (h - small_font.get_height()) // 2
+        draw_text(label, small_font, BLACK, text_x + 1, text_y + 1, hud)
+        draw_text(label, small_font, WHITE, text_x, text_y, hud)
 
 
 class ScreenFade():

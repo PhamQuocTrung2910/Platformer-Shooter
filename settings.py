@@ -5,6 +5,8 @@ lives here, so you can balance the game without touching any game logic.
 This file also starts pygame and creates the window, clock and fonts, which
 every other file imports from here.
 """
+import os
+
 import pygame
 from pygame import mixer
 
@@ -85,9 +87,22 @@ HUD_INACTIVE_COLOUR = (200, 200, 200)
 # ---------------------------------------------------------------------------
 # Fonts
 # ---------------------------------------------------------------------------
-font = pygame.font.SysFont('Century Gothic', 20)
-small_font = pygame.font.SysFont('Century Gothic', 14)
-big_font = pygame.font.SysFont('Century Gothic', 60)
+PIXEL_FONT_PATH = 'fonts/PressStart2P.ttf'   # free from Google Fonts (Press Start 2P)
+
+
+def make_font(size, pixel_size):
+    """Pixel font if the file exists, otherwise the old system font."""
+    if os.path.exists(PIXEL_FONT_PATH):
+        return pygame.font.Font(PIXEL_FONT_PATH, pixel_size)
+    return pygame.font.SysFont('Century Gothic', size)
+
+
+font = make_font(20, 12)
+small_font = make_font(14, 8)
+big_font = pygame.font.SysFont('Century Gothic', 60)   # unchanged: "YOU WIN!" is positioned for this size
+
+LOW_AMMO = 5                          # at or below this the ammo number turns red
+LOW_AMMO_COLOUR = (235, 65, 54)
 
 # ---------------------------------------------------------------------------
 # HUD layout
@@ -165,7 +180,7 @@ SHOCK_DURATION = 3000        # ms of slowness after touching an electric trap (r
 SHOCK_SPEED_MULT = 0.5       # move speed while shocked
 SHOCK_FIRE_RATE_MULT = 0.5   # shooting speed while shocked (cooldown ticks down at half rate)
 BOOST_DURATION = 5000        # ms of speed boost from a speed pad
-BOOST_SPEED_MULT = 2.0       # move speed while boosted (stacks with a stimulant)
+BOOST_SPEED_MULT = 1.3       # move speed while boosted (stacks with a stimulant)
 LAUNCHER_VELOCITY = -13.75   # upward speed from a launcher pad: about 3 tiles high (a normal jump is -11, about 2)
 CONVEYOR_SPEED = 2           # px per frame a conveyor belt carries you
 MEDPAD_HEAL = 2              # health restored per tick while standing on a med pad
