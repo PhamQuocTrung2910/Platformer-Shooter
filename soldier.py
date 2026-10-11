@@ -85,10 +85,14 @@ class Soldier(pygame.sprite.Sprite):
         self.load_animations(scale)
 
         self.image = self.current_frames()[self.frame_index]
-        self.rect = self.image.get_rect()
+        if character_type == 'player':
+            # Narrower than a tile so the player fits through 1-tile gaps (the sprite is drawn centred on it)
+            self.rect = pygame.Rect(0, 0, TILE_SIZE - 10, self.image.get_height())
+        else:
+            self.rect = self.image.get_rect()
         self.rect.center = (x, y)
-        self.width = self.image.get_width()
-        self.height = self.image.get_height()
+        self.width = self.rect.width
+        self.height = self.rect.height
 
     def load_animations(self, scale):
         # For every gun, load every animation (Idle, Run, Jump, Death)
@@ -366,6 +370,11 @@ class Soldier(pygame.sprite.Sprite):
             if self.rect.left + delta_x < 0 or self.rect.right + delta_x > SCREEN_WIDTH:
                 delta_x = 0
 
+        # Never rise above the top of the level
+        if self.rect.top + delta_y < 0:
+            delta_y = -self.rect.top
+            self.velocity_y = 0
+
         # Update Rectangle position
         self.rect.x += delta_x
         self.rect.y += delta_y
@@ -435,7 +444,8 @@ class Soldier(pygame.sprite.Sprite):
     def draw(self):
         # Always face the way the soldier aims and shoots (direction), so the sprite can't
         # be left facing one way while the bullets and vision point the other
-        screen.blit(pygame.transform.flip(self.image, self.direction == -1, False), self.rect)
+        image = pygame.transform.flip(self.image, self.direction == -1, False)
+        screen.blit(image, image.get_rect(midbottom=self.rect.midbottom))
 
     def shoot(self):
         weapon = WEAPONS[self.gun_type]
