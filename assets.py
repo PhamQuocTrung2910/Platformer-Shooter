@@ -30,11 +30,17 @@ def load_image(path, scale=1, size=None):
     return image
 
 
+_frame_cache = {}   # (path, scale) -> frames. Enemies of the same type share one set of images
+
+
 def load_frames(path, scale=1):
     """Load an animation folder: every file named <number>.png, in numeric order.
 
     Other files (sheet previews, Thumbs.db, etc.) are ignored, and a missing or
     empty folder gives a clear error message instead of an obscure crash."""
+    key = (path, scale)
+    if key in _frame_cache:
+        return list(_frame_cache[key])
     if not os.path.isdir(path):
         raise FileNotFoundError(f"Animation folder not found: {path}")
     # re.fullmatch keeps only names like "0.png", "12.png" (digits then .png)
@@ -43,7 +49,9 @@ def load_frames(path, scale=1):
         raise FileNotFoundError(f"No numbered .png frames (0.png, 1.png, ...) in: {path}")
     # Sort by the NUMBER, not the text, so 10.png comes after 2.png (not before it)
     names.sort(key=lambda n: int(n.split('.')[0]))
-    return [load_image(f'{path}/{n}', scale) for n in names]
+    frames = [load_image(f'{path}/{n}', scale) for n in names]
+    _frame_cache[key] = frames
+    return list(frames)
 
 
 # ---------------------------------------------------------------------------
@@ -70,17 +78,35 @@ grenade_sound.set_volume(0.3)
 start_image = load_image('images/Menu/start_button.png')
 exit_image = load_image('images/Menu/exit_button.png')
 restart_image = load_image('images/Menu/restart_button.png')
+# Full-window main menu picture (800 x 730: covers the game area AND the HUD strip)
+menu_background_image = load_image('images/Menu/menu_background.png')
 
-# Background images (drawn in layers for the parallax effect)
-pine1_image = load_image('images/Background/pine1.png')
-pine2_image = load_image('images/Background/pine2.png')
-mountain_image = load_image('images/Background/mountain.png')
-sky_image = load_image('images/Background/sky_cloud.png')
+# Background layers, back to front: (image, parallax_speed, gap_from_bottom).
+# Smaller speed = looks farther away. A gap of None pins the layer to the top of the screen.
+# To add a theme: add an entry here, a colour in settings.BACKGROUND_COLOURS,
+# and assign it to a level in settings.LEVEL_THEMES.
+BACKGROUNDS = {
+    'forest': [
+        (load_image('images/Background/forest/sky_cloud.png'), 0.5, None),
+        (load_image('images/Background/forest/mountain.png'),  0.6, 300),
+        (load_image('images/Background/forest/pine1.png'),     0.7, 150),
+        (load_image('images/Background/forest/pine2.png'),     0.8, 0),
+    ],
+    'lab': [
+        (load_image('images/Background/lab/wall.png'),     0.5,  None),
+        (load_image('images/Background/lab/windows.png'),  0.6,  250),
+        (load_image('images/Background/lab/machines.png'), 0.75, 0),
+    ],
+}
 
 # Tiles: image_list[n] is the picture for tile number n in the level CSV,
-# all scaled to exactly TILE_SIZE x TILE_SIZE
+# all scaled to exactly TILE_SIZE x TILE_SIZE.
+# 0-22 forest + markers, 23-28 effect blocks, 29-43 lab blocks (all in images/Tile/)
 image_list = [load_image(f'images/Tile/{tile_num}.png', size=(TILE_SIZE, TILE_SIZE))
               for tile_num in range(TILE_TYPES)]
+
+# Scientist Flask - Enemy
+flask_image = load_image('images/icons/flask.png', 1.65)
 
 # Bullet and grenade
 bullet_image = load_image('images/icons/bullet.png')
@@ -94,6 +120,7 @@ item_boxes = {
     'Magazine': load_image('images/icons/magazine.png'),
     'Syringe': load_image('images/icons/syringe.png'),
     'MutatedStimulant': load_image('images/icons/mutated_stimulant.png'),
+    'Stimulant': load_image('images/icons/stimulant.png'),
 }
 
 # Weapon icons (HUD): normal copy for the current weapon, faded copy for the others

@@ -14,3 +14,4 @@ background_scroll = 0   # total distance scrolled so far (used for the parallax 
 world = None            # the current World object (tiles + obstacle list)
 player = None           # the current player Soldier
 health_bar = None       # the player's HealthBar
+background_theme = 'forest'   # which background set to draw (set by world.load_level)

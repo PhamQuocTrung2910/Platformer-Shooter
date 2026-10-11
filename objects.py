@@ -7,8 +7,9 @@ import pygame
 
 import state
 from settings import (TILE_SIZE, WEAPONS, GRAVITY, MAX_FALL_SPEED, SCREEN_HEIGHT,
-                      MAGAZINE_AMMO_FRACTION, SYRINGE_HEAL)
-from assets import item_boxes
+                      MAGAZINE_AMMO_FRACTION, SYRINGE_HEAL, PAD_HITBOX_HEIGHT,
+                      LAUNCHER_VELOCITY, MEDPAD_HEAL, MEDPAD_INTERVAL)
+from assets import item_boxes, jump_sound
 
 
 class ItemBox(pygame.sprite.Sprite):
@@ -24,9 +25,10 @@ class ItemBox(pygame.sprite.Sprite):
         self.rect.midtop = (x + TILE_SIZE // 2, y + (TILE_SIZE - self.image.get_height()))
 
     def can_pick_up(self, player):
-        """Mutated stimulants can't be picked up while already stimulated (no stacking)."""
         if self.item_type == 'MutatedStimulant':
-            return player.alive and not player.stimulated
+            return player.can_take_stimulant(mutated=True)
+        if self.item_type == 'Stimulant':
+            return player.can_take_stimulant(mutated=False)
         return True
 
     def update(self):
@@ -57,7 +59,9 @@ class ItemBox(pygame.sprite.Sprite):
         elif self.item_type == 'Syringe':
             player.health = min(player.health + SYRINGE_HEAL, player.max_health)
         elif self.item_type == 'MutatedStimulant':
-            player.apply_stimulant()
+            player.take_stimulant(mutated=True)    # overdoses if a normal one is active
+        elif self.item_type == 'Stimulant':
+            player.take_stimulant(mutated=False)   # overdoses if a mutated one is active
 
 
 class DroppedItem(ItemBox):
@@ -126,3 +130,63 @@ class Exit(_ScrollingTile):
 
 class Water(_ScrollingTile):
     pass
+
+
+# ---------------------------------------------------------------------------
+# Lab effect pads (tiles 23-28). Not solid: you walk over them and they act on
+# the PLAYER while you touch the bottom strip of the tile.
+# ---------------------------------------------------------------------------
+class EffectPad(_ScrollingTile):
+    def __init__(self, image, x, y):
+        super().__init__(image, x, y)
+        # Only the bottom strip of the tile counts, so jumping through the empty
+        # top of the cell doesn't trigger it
+        self.hitbox = pygame.Rect(0, 0, TILE_SIZE, PAD_HITBOX_HEIGHT)
+        self.hitbox.midbottom = self.rect.midbottom
+
+    def update(self):
+        super().update()   # scroll with the world
+        self.hitbox.midbottom = self.rect.midbottom
+        player = state.player
+        if player.alive and self.hitbox.colliderect(player.rect):
+            self.trigger(player)
+
+    def trigger(self, player):
+        pass
+
+
+class ElectricTrap(EffectPad):
+    """Slows movement AND shooting for a few seconds (refreshes while you stand on it)."""
+    def trigger(self, player):
+        player.apply_shock()
+
+
+class SpeedPad(EffectPad):
+    """Doubles movement speed for a few seconds."""
+    def trigger(self, player):
+        player.apply_speed_boost()
+
+
+class LauncherPad(EffectPad):
+    """Fires the player about 3 tiles straight up."""
+    def __init__(self, image, x, y):
+        super().__init__(image, x, y)
+
+    def trigger(self, player):
+        # Only launch when not already rising, so one touch = one launch
+        if player.velocity_y >= 0:
+            player.launch(LAUNCHER_VELOCITY)
+            jump_sound.play()
+
+
+class MedPad(EffectPad):
+    """Heals a little every half second while you stand on it."""
+    def __init__(self, image, x, y):
+        super().__init__(image, x, y)
+        self.next_heal = 0
+
+    def trigger(self, player):
+        now = pygame.time.get_ticks()
+        if now >= self.next_heal and player.health < player.max_health:
+            player.health = min(player.health + MEDPAD_HEAL, player.max_health)
+            self.next_heal = now + MEDPAD_INTERVAL

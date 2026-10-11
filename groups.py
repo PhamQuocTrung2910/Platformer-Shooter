@@ -14,7 +14,10 @@ item_box_group = pygame.sprite.Group()    # pickups (placed in the level or drop
 decoration_group = pygame.sprite.Group()  # scenery with no collision
 water_group = pygame.sprite.Group()       # touching it kills the player
 exit_group = pygame.sprite.Group()        # touching it completes the level
+sludge_group = pygame.sprite.Group()      # Damage over time Sludge
+pad_group = pygame.sprite.Group()         # lab effect pads (electric trap, speed, launcher, med)
 
 # Used by world.load_level() to empty everything when a level is (re)loaded
 ALL_GROUPS = (enemy_group, bullet_group, grenade_group, explosion_group,
-              item_box_group, decoration_group, water_group, exit_group)
+              sludge_group, item_box_group, decoration_group, water_group,
+              exit_group, pad_group)

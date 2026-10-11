@@ -45,7 +45,7 @@ class Bullet(pygame.sprite.Sprite):
             return
 
         # Check for collision with level
-        for tile in state.world.obstacle_list:
+        for tile in state.world.near_tiles:
             if tile[1].colliderect(self.rect):
                 self.kill()
                 return
@@ -125,12 +125,17 @@ class Grenade(pygame.sprite.Sprite):
                     enemy.health -= 50
 
 
+_explosion_frames = {}   # scale -> list of frames, so the files are read from disk only once
+
+
 class Explosion(pygame.sprite.Sprite):
     def __init__(self, x, y, scale):
         pygame.sprite.Sprite.__init__(self)
-        # Load the 5 animation frames exp1.png ... exp5.png
-        self.images = [load_image(f'images/explosion/exp{num}.png', scale)
-                       for num in range(1, 6)]
+        # The 5 animation frames exp1.png ... exp5.png (cached after the first explosion)
+        if scale not in _explosion_frames:
+            _explosion_frames[scale] = [load_image(f'images/explosion/exp{num}.png', scale)
+                                        for num in range(1, 6)]
+        self.images = _explosion_frames[scale]
         self.frame_index = 0
         self.image = self.images[self.frame_index]
         self.rect = self.image.get_rect()

@@ -8,13 +8,15 @@ from sys import exit
 
 import button
 import state
-from settings import (screen, clock, FPS, SCREEN_WIDTH, SCREEN_HEIGHT, MAX_LEVELS,
-                      BACKGROUND_COLOUR, BLACK, PINK, big_font)
-from assets import (start_image, exit_image, restart_image, jump_sound, start_music)
+from settings import (screen, window, clock, FPS, SCREEN_WIDTH, SCREEN_HEIGHT, MAX_LEVELS, ACTIVE_MARGIN,
+                      BACKGROUND_COLOUR, BLACK, PINK, big_font, font)
+from assets import (start_image, exit_image, restart_image, menu_background_image,
+                    jump_sound, start_music)
 from groups import (bullet_group, grenade_group, explosion_group, item_box_group,
-                    decoration_group, water_group, exit_group, enemy_group)
+                    decoration_group, water_group, exit_group, enemy_group, sludge_group,
+                    pad_group)
 from projectiles import Grenade
-from ui import draw_text, draw_background, draw_weapon_hud, ScreenFade
+from ui import draw_text, draw_background, draw_hud, draw_hud_background, ScreenFade
 from world import load_level
 
 # ---------------------------------------------------------------------------
@@ -42,8 +44,12 @@ intro_fade = ScreenFade(1, BLACK, 3)
 death_fade = ScreenFade(2, PINK, 4)
 
 # Menu buttons (x, y, image, scale)
-start_button = button.Button(SCREEN_WIDTH // 2 - 130, SCREEN_HEIGHT // 2 - 150, start_image, 1)
-exit_button = button.Button(SCREEN_WIDTH // 2 - 110, SCREEN_HEIGHT // 2 + 50, exit_image, 1)
+# The main menu is drawn on the whole window (so it covers the HUD strip too), which means
+# these positions are in WINDOW coordinates. They are centred using each image's own width.
+MENU_START_Y = 290
+MENU_EXIT_Y = 430
+start_button = button.Button(SCREEN_WIDTH // 2 - start_image.get_width() // 2, MENU_START_Y, start_image, 1)
+exit_button = button.Button(SCREEN_WIDTH // 2 - exit_image.get_width() // 2, MENU_EXIT_Y, exit_image, 1)
 restart_button = button.Button(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2 - 50, restart_image, 2)
 
 # Build level 1: returns the world, the player and the player's health bar
@@ -56,21 +62,25 @@ while True:
     clock.tick(FPS)   # cap the game at 60 frames per second
 
     if not start_game:
-        # Draw Menu
-        screen.fill(BACKGROUND_COLOUR)
-        # Add button (draw() returns True on the frame it is clicked)
-        if start_button.draw(screen):
+        # Main menu: a full-window picture with the Start & Exit buttons on top
+        window.blit(menu_background_image, (0, 0))
+        controls = 'A / D  move     W  jump     Space  shoot     Q  grenade     1 2 3  weapons'
+        draw_text(controls, font, (200, 210, 205), (SCREEN_WIDTH - font.size(controls)[0]) // 2,
+                  SCREEN_HEIGHT + 30, window)
+        # Buttons draw on the window (draw() returns True on the frame it is clicked)
+        if start_button.draw(window):
             start_game = True
             start_intro = True
-        if exit_button.draw(screen):
+        if exit_button.draw(window):
             pygame.quit()
             exit()
 
     elif game_won:
-        # End screen
+        # End screen - After clearing last level
         draw_background()
+        draw_hud_background()
         draw_text('YOU WIN!', big_font, BLACK, SCREEN_WIDTH // 2 - 130, SCREEN_HEIGHT // 2 - 150)
-        if restart_button.draw(screen):
+        if restart_button.draw(screen): # Restarts game once game is won
             # Reset everything back to level 1
             game_won = False
             level = 1
@@ -82,20 +92,28 @@ while True:
 
     else:
         # ----- Gameplay -----
-        # Update Background
+        # Update Background for the game (BACKGROUND_COLOUR = (144, 201, 120))
         draw_background()
-        # Draw world map
+        # Draw world map for the game (level1_data.csv, level2_data.csv, level3_data.csv, and etc...)
         state.world.draw()
+        # Effect pads sit under the characters, so update/draw them right after the tiles
+        pad_group.update()
+        pad_group.draw(screen)
 
-        # Show player health, weapons, ammo and grenades
-        state.health_bar.draw(state.player.health)
-        draw_weapon_hud()
+        # HUD strip above the game: health, grenades, weapons, ammo and status effects
+        draw_hud()
 
+        # Calling Update & Draw functions from soldier.py
         state.player.update()
         state.player.draw()
 
         # Each enemy: think (ai), update timers/animation, then draw
         for enemy in enemy_group:
+            # Enemies well off-screen are frozen (no AI, physics or drawing); they only
+            # scroll with the world. This is the biggest saving in a level with many enemies.
+            if enemy.rect.right < -ACTIVE_MARGIN or enemy.rect.left > SCREEN_WIDTH + ACTIVE_MARGIN:
+                enemy.rect.x += state.screen_scroll
+                continue
             enemy.ai()
             enemy.update()
             enemy.draw()
@@ -108,6 +126,7 @@ while True:
         decoration_group.update()
         water_group.update()
         exit_group.update()
+        sludge_group.update()
 
         bullet_group.draw(screen)
         grenade_group.draw(screen)
@@ -116,6 +135,7 @@ while True:
         decoration_group.draw(screen)
         water_group.draw(screen)
         exit_group.draw(screen)
+        sludge_group.draw(screen)
 
         # Show Intro
         if start_intro:
@@ -141,7 +161,7 @@ while True:
             # Animation state (independent of shooting / grenades)
             if state.player.in_air:
                 state.player.update_action(2)  # 2 = Jump
-            elif moving_left or moving_right:
+            elif (moving_left or moving_right) and not state.player.overdosed:
                 state.player.update_action(1)  # 1 = Run
             else:
                 state.player.update_action(0)  # 0 = Idle
@@ -185,7 +205,8 @@ while True:
                 moving_left = True
             if event.key == pygame.K_RIGHT or event.key == pygame.K_d:
                 moving_right = True
-            if (event.key == pygame.K_UP or event.key == pygame.K_w) and state.player.alive:
+            if (event.key == pygame.K_UP or event.key == pygame.K_w) and state.player.alive \
+                    and not state.player.overdosed:
                 state.player.jump = True
                 jump_sound.play()
             if event.key == pygame.K_SPACE:

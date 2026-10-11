@@ -20,6 +20,10 @@ class Button():
 
 		#get mouse position
 		pos = pygame.mouse.get_pos()
+		# The game area sits below the HUD strip, so convert the mouse position
+		# to that surface's own coordinates (no change for a full-window surface)
+		offset_x, offset_y = surface.get_abs_offset()
+		pos = (pos[0] - offset_x, pos[1] - offset_y)
 
 		#check mouseover and clicked conditions
 		if self.rect.collidepoint(pos):

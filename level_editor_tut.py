@@ -17,7 +17,8 @@ import pickle   # only used by the commented-out "alternative pickle method" bel
 # settings, which opens an 800x640 game window; the editor then replaces it
 # with its own bigger window. Done the other way round, the game's window
 # would shrink the editor's window.
-from assets import load_image
+from assets import load_image, BACKGROUNDS, image_list
+from settings import LEVEL_THEMES, BACKGROUND_COLOURS, TILE_NAMES, TILE_TYPES
 
 pygame.init()
 
@@ -40,28 +41,18 @@ pygame.display.set_caption('Level Editor')
 ROWS = 16                           # tile rows in a level (must match the game)
 MAX_COLS = 150                      # tile columns in a level (must match the game)
 TILE_SIZE = SCREEN_HEIGHT // ROWS   # size of one square tile in pixels (40)
-TILE_TYPES = 22                     # how many different tile images exist (0-21)
 level = 0                           # which level file we are editing (UP/DOWN changes it)
 current_tile = 0                    # the tile type currently selected in the palette
 scroll_left = False                 # True while the LEFT arrow is held
 scroll_right = False                # True while the RIGHT arrow is held
 scroll = 0                          # how many pixels the view has moved to the right
 scroll_speed = 1                    # 1 normally, 5 while right shift is held
+theme_override = None               # press T to preview another background (None = use LEVEL_THEMES)
 
 
 #load images
-# Parallax background layers (same pictures the game uses)
-pine1_img = load_image('images/Background/pine1.png')
-pine2_img = load_image('images/Background/pine2.png')
-mountain_img = load_image('images/Background/mountain.png')
-sky_img = load_image('images/Background/sky_cloud.png')
-#store tiles in a list
-# img_list[n] is the picture for tile number n, scaled to one grid square.
-# load_image(size=...) does the loading AND the scaling in one call.
-img_list = []
-for x in range(TILE_TYPES):
-	img = load_image(f'images/Tile/{x}.png', size=(TILE_SIZE, TILE_SIZE))
-	img_list.append(img)
+# (Background images now come from assets.BACKGROUNDS, one set per theme)
+# Tile pictures come from assets.image_list (already scaled to a grid square)
 
 save_img = load_image('images/button/save_btn.png')
 load_img = load_image('images/button/load_btn.png')
@@ -71,9 +62,11 @@ load_img = load_image('images/button/load_btn.png')
 GREEN = (144, 201, 120)
 WHITE = (255, 255, 255)
 RED = (200, 25, 25)
+BLACK = (0, 0, 0)
 
 #define font
 font = pygame.font.SysFont('Futura', 30)
+small_font = pygame.font.SysFont('Futura', 22)
 
 #create empty tile list
 # world_data is a 2D list: world_data[row][column]. -1 = empty cell.
@@ -95,17 +88,28 @@ def draw_text(text, font, text_col, x, y):
 	screen.blit(img, (x, y))
 
 
+#which background theme to show
+def get_theme():
+	# T-key preview wins; otherwise use the theme assigned to this level in settings.py
+	if theme_override is not None:
+		return theme_override
+	return LEVEL_THEMES.get(level, 'forest')
+
+
 #create function for drawing background
 def draw_bg():
-	screen.fill(GREEN)
-	width = sky_img.get_width()
+	theme = get_theme()
+	screen.fill(BACKGROUND_COLOURS[theme])
 	# Parallax: each layer moves at a different fraction of the scroll, so
-	# slower layers look farther away. Repeated 4 times side by side.
-	for x in range(4):
-		screen.blit(sky_img, ((x * width) - scroll * 0.5, 0))
-		screen.blit(mountain_img, ((x * width) - scroll * 0.6, SCREEN_HEIGHT - mountain_img.get_height() - 300))
-		screen.blit(pine1_img, ((x * width) - scroll * 0.7, SCREEN_HEIGHT - pine1_img.get_height() - 150))
-		screen.blit(pine2_img, ((x * width) - scroll * 0.8, SCREEN_HEIGHT - pine2_img.get_height()))
+	# slower layers look farther away. Only the copies on screen are drawn.
+	for image, speed, gap_from_bottom in BACKGROUNDS[theme]:
+		width = image.get_width()
+		y = 0 if gap_from_bottom is None else SCREEN_HEIGHT - image.get_height() - gap_from_bottom
+		offset = scroll * speed
+		first = int(offset // width)
+		copies = SCREEN_WIDTH // width + 2
+		for i in range(first, first + copies):
+			screen.blit(image, (i * width - offset, y))
 
 #draw grid
 def draw_grid():
@@ -126,7 +130,7 @@ def draw_world():
 		for x, tile in enumerate(row):
 			if tile >= 0:
 				# Grid position -> pixel position, shifted left by the scroll
-				screen.blit(img_list[tile], (x * TILE_SIZE - scroll, y * TILE_SIZE))
+				screen.blit(image_list[tile], (x * TILE_SIZE - scroll, y * TILE_SIZE))
 
 
 
@@ -134,19 +138,14 @@ def draw_world():
 save_button = button.Button(SCREEN_WIDTH // 2, SCREEN_HEIGHT + LOWER_MARGIN - 50, save_img, 1)
 load_button = button.Button(SCREEN_WIDTH // 2 + 200, SCREEN_HEIGHT + LOWER_MARGIN - 50, load_img, 1)
 #make a button list
-# One button per tile type, laid out in a grid of 3 columns on the right panel.
-# Clicking one selects that tile type.
+# One palette button per tile type (forest, effect and lab blocks all together),
+# 5 buttons per row. Clicking a button selects that tile type.
+PALETTE_COLUMNS = 5
 button_list = []
-button_col = 0
-button_row = 0
-for i in range(len(img_list)):
-	tile_button = button.Button(SCREEN_WIDTH + (75 * button_col) + 50, 75 * button_row + 50, img_list[i], 1)
-	button_list.append(tile_button)
-	button_col += 1
-	# After 3 buttons, start a new row
-	if button_col == 3:
-		button_row += 1
-		button_col = 0
+for i, tile_image in enumerate(image_list):
+	bx = SCREEN_WIDTH + 15 + 55 * (i % PALETTE_COLUMNS)
+	by = 20 + 55 * (i // PALETTE_COLUMNS)
+	button_list.append(button.Button(bx, by, tile_image, 1))
 
 
 # ---------------------------------------------------------------------------
@@ -164,6 +163,8 @@ while run:
 
 	draw_text(f'Level: {level}', font, WHITE, 10, SCREEN_HEIGHT + LOWER_MARGIN - 90)
 	draw_text('Press UP or DOWN to change level', font, WHITE, 10, SCREEN_HEIGHT + LOWER_MARGIN - 60)
+	note = ' (preview)' if theme_override is not None else ''
+	draw_text(f'Theme: {get_theme()}{note}  -  T to preview others', font, WHITE, 10, SCREEN_HEIGHT + LOWER_MARGIN - 30)
 
 	#save and load data
 	# button.draw() returns True on the frame the button is clicked
@@ -244,8 +245,13 @@ while run:
 		if event.type == pygame.KEYDOWN:
 			if event.key == pygame.K_UP:
 				level += 1
+				theme_override = None   # back to this level's own theme
 			if event.key == pygame.K_DOWN and level > 0:   # level can't go below 0
 				level -= 1
+				theme_override = None
+			if event.key == pygame.K_t:    # cycle through every theme to preview it
+				themes = list(BACKGROUNDS)
+				theme_override = themes[(themes.index(get_theme()) + 1) % len(themes)]
 			if event.key == pygame.K_LEFT:
 				scroll_left = True
 			if event.key == pygame.K_RIGHT:
