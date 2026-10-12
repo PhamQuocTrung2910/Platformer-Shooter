@@ -8,7 +8,8 @@ from settings import (screen, hud, SCREEN_WIDTH, SCREEN_HEIGHT, PLAYER_GUNS,
                       HUD_ACTIVE_COLOUR, HUD_INACTIVE_COLOUR,
                       HUD_BG_COLOUR, HUD_LINE_COLOUR, GRENADE_X, HUD_HEIGHT,
                       HUD_X, HUD_WIDTH, SLOT_WIDTH, SLOT_HEIGHT, SLOT_GAP, SLOT_Y,
-                      LOW_AMMO, LOW_AMMO_COLOUR, font, small_font)
+                      LOW_AMMO, LOW_AMMO_COLOUR, KILL_TEXT_X, ENEMY_SHORT_NAMES,
+                      font, small_font)
 from assets import (BACKGROUNDS, bullet_image, grenade_image,
                     weapon_icons, faded_weapon_icons)
 
@@ -60,6 +61,7 @@ def draw_hud():
     draw_hud_background()
     state.health_bar.draw(state.player.health)
     draw_weapon_hud()
+    draw_kill_counter()
     draw_status_bar()
 
 
@@ -101,6 +103,28 @@ def draw_weapon_hud():
         grenade_spacing = min(15, 150 / player.grenades)
         for i in range(player.grenades):
             hud.blit(grenade_image, (GRENADE_X + i * grenade_spacing, 52))
+
+
+def draw_kill_counter():
+    """Kills / required for each enemy type in the level. Turns green per type when done,
+    shows EXIT OPEN when all are done, and flashes red after touching a locked exit."""
+    ammo_y = SLOT_Y + SLOT_HEIGHT + 8
+    text_y = ammo_y + (big_bullet.get_height() - small_font.get_height()) // 2
+    if state.quota_met():
+        draw_text('EXIT OPEN', small_font, (60, 220, 90), KILL_TEXT_X, text_y, hud)
+        return
+    flashing = (pygame.time.get_ticks() < state.exit_blocked_until
+                and (pygame.time.get_ticks() // 200) % 2 == 0)
+    x = KILL_TEXT_X
+    for kind, need in state.kills_required.items():
+        have = min(state.kills.get(kind, 0), need)
+        if have >= need:
+            colour = (60, 220, 90)
+        else:
+            colour = RED if flashing else WHITE
+        label = f'{ENEMY_SHORT_NAMES.get(kind, kind[:3].upper())} {have}/{need}'
+        draw_text(label, small_font, colour, x, text_y, hud)
+        x += small_font.size(label)[0] + 14
 
 
 def draw_status_bar():

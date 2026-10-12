@@ -4,16 +4,19 @@ Each level is a grid of numbers (16 rows x 150 columns). Each number says what
 sits in that cell: -1 = empty, 0-8 = solid ground, 15 = player spawn, and so on.
 """
 import csv
+import math
 
 import state  # World reads state.screen_scroll; load_level sets state.background_theme
 from settings import (screen, ROWS, COLUMNS, TILE_SIZE, PLAYER_GUNS, PLAYER_START_AMMO,
-                      ENEMY_GUNS, ENEMY_START_AMMO, LEVEL_THEMES, SCREEN_WIDTH, NEAR_TILE_MARGIN)
+                      PLAYER_SPEED, PLAYER_START_GRENADES, LEVEL_THEMES, SCREEN_WIDTH, NEAR_TILE_MARGIN,
+                      KILL_QUOTA_PERCENT)
 from assets import image_list
 import groups
 from groups import (water_group, decoration_group, enemy_group, item_box_group,
                     exit_group, pad_group)
 from objects import (ItemBox, Decoration, Exit, Water,
                      ElectricTrap, SpeedPad, LauncherPad, MedPad)
+from player import Player
 from soldier import Soldier
 from zombie import Zombie
 from scientist import Scientist
@@ -49,13 +52,11 @@ class World():
                     elif 11 <= tile <= 14 or 40 <= tile <= 43:    # scenery
                         decoration_group.add(Decoration(image, x * TILE_SIZE, y * TILE_SIZE))
                     elif tile == 15:  # Create Player
-                        player = Soldier('player', PLAYER_GUNS, x * TILE_SIZE, y * TILE_SIZE,
-                                         1.65, 5, PLAYER_START_AMMO, 10)
+                        player = Player(x * TILE_SIZE, y * TILE_SIZE, 1.65, PLAYER_SPEED,
+                                        PLAYER_GUNS, PLAYER_START_AMMO, PLAYER_START_GRENADES)
                         health_bar = HealthBar(10, 10, player.health, player.health)
                     elif tile == 16:  # Create Enemies
-                        enemy = Soldier('enemy', ENEMY_GUNS, x * TILE_SIZE, y * TILE_SIZE,
-                                        1.65, 2, ENEMY_START_AMMO, 0)
-                        enemy_group.add(enemy)
+                        enemy_group.add(Soldier(x * TILE_SIZE, y * TILE_SIZE, 1.65))
                     elif tile == 17:  # Create Ammo Box
                         item_box_group.add(ItemBox('Ammo', x * TILE_SIZE, y * TILE_SIZE))
                     elif tile == 18:  # Create Grenade Box
@@ -122,4 +123,13 @@ def load_level(level_num):
     if new_player is None:
         raise ValueError(f'levels/level{level_num}_data.csv has no player spawn. '
                          'Place the green soldier tile (15) somewhere in the level and save it.')
+
+    # Kill quota: count each enemy type in the level and require a percentage of EACH
+    totals = {}
+    for enemy in enemy_group:
+        totals[enemy.enemy_type] = totals.get(enemy.enemy_type, 0) + 1
+    state.kills = {kind: 0 for kind in totals}
+    state.kills_required = {kind: max(1, math.ceil(count * KILL_QUOTA_PERCENT))
+                            for kind, count in totals.items()}
+    state.exit_blocked_until = 0
     return new_world, new_player, new_health_bar

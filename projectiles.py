@@ -1,11 +1,11 @@
 """projectiles.py - things that fly through the air: bullets, grenades, explosions."""
 import pygame
-import random  # noqa: F401  (kept in case you add randomness to projectiles later)
+import random
 
 import state
 from settings import GRAVITY, SCREEN_WIDTH, TILE_SIZE
-from assets import load_image, bullet_image, grenade_image, grenade_sound
-from groups import enemy_group, explosion_group
+from assets import load_image, bullet_image, grenade_image, grenade_sound, gun_shot_sound
+from groups import enemy_group, explosion_group, bullet_group
 
 
 class Bullet(pygame.sprite.Sprite):
@@ -62,6 +62,16 @@ class Bullet(pygame.sprite.Sprite):
                     enemy.health -= self.damage
                     self.kill()
                     break   # one bullet only hurts one enemy
+
+
+def spawn_bullets(owner, weapon, x, y, direction, damage):
+    """Fire one shot of `weapon` (a settings.WEAPONS entry): one Bullet per pellet, each with
+    its own random vertical drift, then play the gunshot. Used by the Player and Soldier."""
+    for _ in range(weapon['pellets']):
+        velocity_y = random.uniform(-weapon['spread'], weapon['spread']) if weapon['spread'] else 0
+        bullet_group.add(Bullet(x, y, direction, owner, weapon['bullet_speed'], damage,
+                                velocity_y, weapon['lifetime']))
+    gun_shot_sound.play()
 
 
 class Grenade(pygame.sprite.Sprite):

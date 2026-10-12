@@ -1,11 +1,10 @@
-"""scientist.py - the Scientist enemy, a flask-throwing version of Soldier.
+"""scientist.py - the Scientist enemy, a flask-throwing Enemy.
 
 It also holds the two things that only the scientist creates:
   Flask  - the projectile he throws. It shatters when it lands (or hits the player).
   Sludge - the green puddle left behind. Anything standing in it takes damage over time.
 """
 import math
-import random
 
 import pygame
 
@@ -16,18 +15,15 @@ from settings import (GRAVITY, SCREEN_WIDTH, SCREEN_HEIGHT, TILE_SIZE, screen,
                       SCIENTIST_DROP_CHANCES, FLASK_SPEED, FLASK_VELOCITY_Y,
                       SLUDGE_DURATION, SLUDGE_FADE_MS, SLUDGE_TICK_INTERVAL,
                       SLUDGE_TICK_DAMAGE, SLUDGE_GROW_FRAMES, SLUDGE_SPREAD_DELAY)
-from assets import load_frames, flask_image
+from assets import flask_image
 from groups import bullet_group, sludge_group, enemy_group
-from soldier import Soldier
+from character import ACTION_IDLE
+from enemy import Enemy
 
-# Animation indices (same layout as the zombie, so Soldier's death handling just works)
-ACTION_IDLE = 0
-ACTION_RUN = 1
+# Animation indices (Idle 0 and Run 1 come from character.py)
 ACTION_DEATH = 2
 ACTION_ATTACK = 3
 SCIENTIST_ANIMATIONS = ['Idle', 'Run', 'Death', 'Attack']   # order must match the ACTION_ numbers
-
-ANIMATION_COOLDOWN = 100  # ms per frame, same as Soldier
 
 
 # ---------------------------------------------------------------------------
@@ -222,64 +218,42 @@ class Flask(pygame.sprite.Sprite):
 # ---------------------------------------------------------------------------
 # Scientist
 # ---------------------------------------------------------------------------
-class Scientist(Soldier):
+class Scientist(Enemy):
     """Slow (half a zombie's speed), frail (75% of a soldier's health) enemy with the same
     vision box as a soldier. When it sees the player it throws a flask. When it dies it
     spills sludge across three tiles and may drop a Stimulant (see SCIENTIST_DROP_CHANCES)."""
 
-    drop_chances = SCIENTIST_DROP_CHANCES   # Soldier.drop_loot() reads this
-    death_action = ACTION_DEATH             # Soldier.check_alive() plays this on death
+    animation_folder = 'images/enemy/scientist'
+    animation_names = SCIENTIST_ANIMATIONS
+    death_action = ACTION_DEATH
+    enemy_type = 'scientist'
+    drop_chances = SCIENTIST_DROP_CHANCES
+    patrol_frames = SCIENTIST_PATROL_FRAMES
 
     def __init__(self, x, y, scale, speed=SCIENTIST_SPEED):
-        # Set before Soldier.__init__ so they exist no matter what it calls
+        # Set before Enemy.__init__ so they exist no matter what it calls
         self.attacking = False       # True while the throw animation is playing
         self.has_thrown = False      # True once this throw's flask has left his hand
         self.attack_cooldown = 0     # frames until he may throw again
-        self.step_accumulator = 0.0  # builds up fractional speed (see move())
-
-        # One dummy 'weapon' so Soldier's per-gun animation lookup keeps working.
-        super().__init__('enemy', ['flask'], x, y, scale, speed, {'flask': 0}, 0)
-
-        self.health = SCIENTIST_HEALTH
-        self.max_health = self.health
+        super().__init__(x, y, scale, speed, SCIENTIST_HEALTH)
 
     # ------------------------------------------------------------------
-    # Animations & drawing
+    # Animation hooks & drawing
     # ------------------------------------------------------------------
-    def load_animations(self, scale):
-        """images/enemy/scientist/<Idle|Run|Death|Attack>/<n>.png"""
-        animations = []
-        for animation in SCIENTIST_ANIMATIONS:
-            frames = load_frames(f'images/enemy/scientist/{animation}', scale)
-            animations.append(frames)
-        self.animations[self.gun_type] = animations
+    def on_frame_advance(self, frames):
+        # The flask leaves his hand part-way through the throw (only once per throw)
+        release_frame = min(SCIENTIST_RELEASE_FRAME, len(frames) - 1)
+        if (self.action == ACTION_ATTACK and not self.has_thrown and self.alive
+                and self.frame_index >= release_frame):
+            self.has_thrown = True
+            self.throw_flask()
 
-    def update_animation(self):
-        frames = self.current_frames()
-
-        if self.frame_index >= len(frames):
+    def on_animation_end(self):
+        if self.action == ACTION_ATTACK:   # throw finished
+            self.attacking = False
+            self.update_action(ACTION_IDLE)
+        else:
             self.frame_index = 0
-        self.image = frames[self.frame_index]
-
-        if pygame.time.get_ticks() - self.update_time > ANIMATION_COOLDOWN:
-            self.update_time = pygame.time.get_ticks()
-            self.frame_index += 1
-
-            # The flask leaves his hand part-way through the throw (only once per throw)
-            release_frame = min(SCIENTIST_RELEASE_FRAME, len(frames) - 1)
-            if (self.action == ACTION_ATTACK and not self.has_thrown and self.alive
-                    and self.frame_index >= release_frame):
-                self.has_thrown = True
-                self.throw_flask()
-
-        if self.frame_index >= len(frames):
-            if self.action == ACTION_DEATH:      # hold the last frame
-                self.frame_index = len(frames) - 1
-            elif self.action == ACTION_ATTACK:   # throw finished
-                self.attacking = False
-                self.update_action(ACTION_IDLE)
-            else:
-                self.frame_index = 0
 
     def draw(self):
         """The Attack frames are wider than Idle/Run (the arm and flask stick out), so
@@ -291,25 +265,6 @@ class Scientist(Soldier):
         else:
             x = self.rect.right - image.get_width()
         screen.blit(image, (x, self.rect.bottom - image.get_height()))
-
-    # ------------------------------------------------------------------
-    # Movement
-    # ------------------------------------------------------------------
-    def move(self, moving_left, moving_right):
-        """Soldier.move() works in whole pixels, and a rect can't hold 0.25 of one, so a
-        speed that small would just round away to nothing. Instead, save the fractions up
-        and only move a whole pixel when enough have built up (0.25 = 1 px every 4 frames)."""
-        real_speed = self.speed
-        if moving_left or moving_right:
-            self.step_accumulator += real_speed
-        whole_pixels = int(self.step_accumulator)
-        self.step_accumulator -= whole_pixels
-
-        self.speed = whole_pixels
-        try:
-            return super().move(moving_left, moving_right)
-        finally:
-            self.speed = real_speed
 
     # ------------------------------------------------------------------
     # Combat
@@ -327,17 +282,14 @@ class Scientist(Soldier):
         bullet_group.add(Flask(x, y, self.direction))
 
     def update(self):
-        super().update()   # stimulant, animation, alive check, etc. from Soldier
+        super().update()
         if self.attack_cooldown > 0:
             self.attack_cooldown -= 1
 
-    def check_alive(self):
-        was_alive = self.alive
-        super().check_alive()   # sets alive = False, plays Death, rolls the loot drops
-        if not self.alive:
-            self.attacking = False
-            if was_alive:
-                self.spill_sludge()   # only on the frame he dies
+    def on_death(self):
+        super().on_death()   # loot + kill quota
+        self.attacking = False
+        self.spill_sludge()
 
     def spill_sludge(self):
         """Sludge on the tile he dies on, then the tiles either side of it a moment later,
@@ -352,18 +304,7 @@ class Scientist(Soldier):
     # ------------------------------------------------------------------
     # AI
     # ------------------------------------------------------------------
-    def ai(self):
-        player = state.player
-
-        # Scroll first so the vision box and rect stay in sync with the world
-        self.rect.x += state.screen_scroll
-
-        if not (self.alive and player.alive):
-            return
-
-        # Same vision box as a Soldier (150 x 20, centred 75px in front)
-        self.vision.center = (self.rect.centerx + 75 * self.direction, self.rect.centery)
-
+    def think(self, player):
         # Commit to the throw: stand still until it finishes
         if self.attacking:
             return
@@ -375,20 +316,5 @@ class Scientist(Soldier):
                 self.update_action(ACTION_IDLE)   # wait until he can throw again
             return
 
-        # Nothing in sight: shuffle back and forth like a Soldier patrol
-        if not self.idling and random.randint(1, 200) == 1:
-            self.update_action(ACTION_IDLE)
-            self.idling = True
-            self.idling_counter = 50
-
-        if not self.idling:
-            self.move(self.direction == -1, self.direction == 1)
-            self.update_action(ACTION_RUN)
-            self.move_counter += 1
-            if self.move_counter > SCIENTIST_PATROL_FRAMES:
-                self.direction *= -1
-                self.move_counter *= -1
-        else:
-            self.idling_counter -= 1
-            if self.idling_counter <= 0:
-                self.idling = False
+        # Nothing in sight: shuffle back and forth
+        self.patrol()

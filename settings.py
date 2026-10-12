@@ -64,6 +64,11 @@ WEAPONS = {
 }
 PLAYER_GUNS = ['pistol', 'rifle', 'shotgun']              # order = keys 1, 2, 3
 PLAYER_START_AMMO = {'pistol': 20, 'rifle': 30, 'shotgun': 8}
+PLAYER_START_GRENADES = 10
+PLAYER_SPEED = 5
+PLAYER_HEALTH = 100
+SOLDIER_SPEED = 2              # the enemy soldier
+SOLDIER_HEALTH = 100
 ENEMY_GUNS = ['rifle']
 ENEMY_START_AMMO = {'rifle': 5}
 ANIMATION_TYPES = ['Idle', 'Run', 'Jump', 'Death']        # index in this list = action number
@@ -185,6 +190,16 @@ LAUNCHER_VELOCITY = -13.75   # upward speed from a launcher pad: about 3 tiles h
 CONVEYOR_SPEED = 2           # px per frame a conveyor belt carries you
 MEDPAD_HEAL = 2              # health restored per tick while standing on a med pad
 MEDPAD_INTERVAL = 500        # ms between med pad ticks
+
+# ---------------------------------------------------------------------------
+# Level exit requirement
+# ---------------------------------------------------------------------------
+# To unlock the exit the player must kill this fraction of EACH enemy type in the level
+# (rounded up, minimum 1), so killing only one type is never enough.
+KILL_QUOTA_PERCENT = 0.6
+EXIT_BLOCKED_FLASH_MS = 1500   # how long the kill counter flashes after touching a locked exit
+KILL_TEXT_X = 300              # left edge of the kill counter in the HUD
+ENEMY_SHORT_NAMES = {'soldier': 'SOL', 'zombie': 'ZOM', 'scientist': 'SCI'}
 
 # Names shown in the level editor
 TILE_NAMES = {

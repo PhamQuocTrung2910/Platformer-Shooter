@@ -15,7 +15,6 @@ from assets import (start_image, exit_image, restart_image, menu_background_imag
 from groups import (bullet_group, grenade_group, explosion_group, item_box_group,
                     decoration_group, water_group, exit_group, enemy_group, sludge_group,
                     pad_group)
-from projectiles import Grenade
 from ui import draw_text, draw_background, draw_hud, draw_hud_background, ScreenFade
 from world import load_level
 
@@ -149,14 +148,9 @@ while True:
             if shooting:
                 state.player.shoot()
             # Throw Grenade
-            if throwing_grenade and not grenade_thrown and state.player.grenades > 0:
-                new_grenade = Grenade(
-                    state.player.rect.centerx + (0.5 * state.player.rect.size[0] * state.player.direction),
-                    state.player.rect.top, state.player.direction)
-                grenade_group.add(new_grenade)
-                # Reduce Grenade
-                state.player.grenades -= 1
-                grenade_thrown = True
+            if throwing_grenade and not grenade_thrown:
+                if state.player.throw_grenade():   # False when there are none left
+                    grenade_thrown = True
 
             # Animation state (independent of shooting / grenades)
             if state.player.in_air:
